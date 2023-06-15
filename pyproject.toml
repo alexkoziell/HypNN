@@ -17,6 +17,9 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
+[project.optional-dependencies]
+development = [ "pre-commit >= 3.3.3" ]
+
 [project.urls]
 "Homepage" = "https://github.com/alexkoziell/HypNN"
 "Bug Tracker" = "https://github.com/alexkoziell/HypNN/issues"
