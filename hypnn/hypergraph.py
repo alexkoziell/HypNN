@@ -13,6 +13,8 @@
 #    limitations under the License.
 """Vertex, Hyperedge and Hypergraph classes."""
 
+from __future__ import annotations
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
@@ -65,21 +67,25 @@ class Hypergraph:
         self.inputs: List[int] = []
         self.outputs: List[int] = []
 
-    def add_vertex(self, vtype: Any | None = None) -> Vertex:
+    def add_vertex(self, vtype: Any | None = None) -> int:
         """Add a vertex to the hypergraph.
 
         Args:
             vtype: A type associated with the vertex.
+
+        Returns:
+            vertex_id: A unique integer identifier for the hypergraph
+                       to reference the newly created vertex.
         """
-        # Give the new vertex a unique identifier
-        index = max((i for i in self.vertices.keys()), default=-1) + 1
+        # Give the new vertex a unique integer identifier
+        vertex_id = max((i for i in self.vertices.keys()), default=-1) + 1
         new_vertex = Vertex(vtype)
-        self.vertices[index] = new_vertex
-        return new_vertex
+        self.vertices[vertex_id] = new_vertex
+        return vertex_id
 
     def add_edge(self,
                  sources: List[int], targets: List[int],
-                 label: str | None = None) -> Hyperedge:
+                 label: str | None = None) -> int:
         """Add a new hyperedge to the hypergraph.
 
         Args:
@@ -88,6 +94,10 @@ class Hypergraph:
             targets: A list of integer identifiers for vertices
                     directed from the hyperedge.
             label: A label to identify the hyperedge when drawing.
+
+        Returns:
+            edge_id: A unique integer identifier for the hypergraph
+                     to reference the newly created edge.
         """
         # Check all the vertex identifiers in sources and targets correspond to
         # existing vertices in the hypergraph.
@@ -98,8 +108,50 @@ class Hypergraph:
               'Hyperedge attached to vertices that are not in the hypergraph.'
             )
 
-        # Give the new hyperedge a unique identifier
-        index = max((i for i in self.edges.keys()), default=-1) + 1
+        # Give the new hyperedge a unique integer identifier
+        edge_id = max((i for i in self.edges.keys()), default=-1) + 1
         new_edge = Hyperedge(sources, targets, label)
-        self.edges[index] = new_edge
-        return new_edge
+        self.edges[edge_id] = new_edge
+        return edge_id
+
+    def parallel_comp(self, other: Hypergraph,
+                      in_place: bool = False) -> Hypergraph | None:
+        """Compose this hypergraph in parallel with `other`.
+
+        Note that this is done **in place**, meaning it modifies the hypergraph
+        instance calling this method.
+
+        Args:
+            other: The hypergraph to compose with.
+            in_place: Whether to modify `self` rather than creating
+                      a new :py:class:`Hypergraph` instance.
+
+        Returns:
+            composed: The parallel composition of `self` with `other`.
+        """
+        # If in_place, modify self directly
+        composed = self if in_place else deepcopy(self)
+
+        # Add vertices to self for each vertex in other, and create a
+        # one-to-one correspondence between the added vertices and
+        # the vertices of other
+        vertex_map: Dict[int, int] = {}
+        for vertex_id, vertex in other.vertices.items():
+            vertex_map[vertex_id] = composed.add_vertex(vertex.vtype)
+
+        # Add edges to self for each edge in other, with connectivity that
+        # matches that of other in a compatible way with the vertex map
+        # established above
+        for edge in other.edges.values():
+            composed.add_edge([vertex_map[s] for s in edge.sources],
+                              [vertex_map[t] for t in edge.targets],
+                              edge.label)
+
+        # For parallel composition, append the boundary vertices of other
+        # to the boundary vertices of self.
+        composed.inputs += [vertex_map[i] for i in other.inputs]
+        composed.outputs += [vertex_map[o] for o in other.outputs]
+
+        # To make it clear when an in place modifications has been made,
+        # return None if in_place
+        return None if in_place else composed
