@@ -118,9 +118,6 @@ class Hypergraph:
                       in_place: bool = False) -> Hypergraph | None:
         """Compose this hypergraph in parallel with `other`.
 
-        Note that this is done **in place**, meaning it modifies the hypergraph
-        instance calling this method.
-
         Args:
             other: The hypergraph to compose with.
             in_place: Whether to modify `self` rather than creating
@@ -151,6 +148,64 @@ class Hypergraph:
         # to the boundary vertices of self.
         composed.inputs += [vertex_map[i] for i in other.inputs]
         composed.outputs += [vertex_map[o] for o in other.outputs]
+
+        # To make it clear when an in place modifications has been made,
+        # return None if in_place
+        return None if in_place else composed
+
+    def sequential_comp(self, other: Hypergraph,
+                        in_place: bool = False) -> Hypergraph | None:
+        """Compose this hypergraph in sequence with `other`.
+
+        The outputs of `self` must match the inputs of `other` in order
+        for the composition to be well-defined.
+
+        Args:
+            other: The hypergraph to compose with.
+            in_place: Whether to modify `self` rather than creating
+                      a new :py:class:`Hypergraph` instance.
+
+        Returns:
+            composed: The sequential composition of `self` with `other`.
+        """
+        if n_out := len(self.outputs) != (n_in := len(other.inputs)):
+            raise ValueError(
+                f'Cannot sequentially compose hypergraph with {n_out} outputs'
+                + f'with one with {n_in} inputs.'
+            )
+        if any(self.vertices[o].vtype != other.vertices[i].vtype
+               for o, i in zip(self.outputs, other.inputs)):
+            raise ValueError(
+                'Vertex types do not match at composition boundary.'
+            )
+
+        # If in_place, modify self directly
+        composed = self if in_place else deepcopy(self)
+
+        # Add vertices to self for each non-boundary vertex in other,
+        # and create a one-to-one correspondence between the added vertices
+        # and the vertices of other
+        vertex_map: Dict[int, int] = {}
+        for vertex_id, vertex in other.vertices.items():
+            # Inputs of other must be mapped to outputs of self
+            if vertex_id in other.inputs:
+                pass
+            vertex_map[vertex_id] = composed.add_vertex(vertex.vtype)
+
+        # Identify output vertices of self with input vertices of other
+        for out_vid, in_vid in zip(composed.outputs, other.inputs):
+            vertex_map[in_vid] = out_vid
+
+        # The outputs of the composition correspond to the outputs of other
+        composed.outputs = [vertex_map[o] for o in other.outputs]
+
+        # Add edges to self for each edge in other, with connectivity that
+        # matches that of other in a compatible way with the vertex map
+        # established above
+        for edge in other.edges.values():
+            composed.add_edge([vertex_map[s] for s in edge.sources],
+                              [vertex_map[t] for t in edge.targets],
+                              edge.label)
 
         # To make it clear when an in place modifications has been made,
         # return None if in_place
