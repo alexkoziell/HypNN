@@ -15,8 +15,8 @@
 
 from __future__ import annotations
 from copy import deepcopy
-from dataclasses import dataclass
-from typing import Any, Dict, List
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Set
 
 
 @dataclass
@@ -30,6 +30,10 @@ class Vertex:
 
     vtype: Any | None = None
     """A type associated with the vertex."""
+    sources: Set[int] = field(default_factory=set)
+    """A set of integer identifiers for hyperedges into the vertex."""
+    targets: Set[int] = field(default_factory=set)
+    """A set of integer identifiers for hyperedges from the hyperedge."""
 
 
 @dataclass
@@ -46,6 +50,8 @@ class Hyperedge:
     """A list of integer identifiers for vertices from the hyperedge."""
     label: str | None = None
     """A label to identify the hyperedge when drawing."""
+    identity: bool = False
+    """Whether this hyperedge is an identity or not."""
 
 
 class Hypergraph:
@@ -85,7 +91,8 @@ class Hypergraph:
 
     def add_edge(self,
                  sources: List[int], targets: List[int],
-                 label: str | None = None) -> int:
+                 label: str | None = None,
+                 identity: bool = False) -> int:
         """Add a new hyperedge to the hypergraph.
 
         Args:
@@ -94,6 +101,7 @@ class Hypergraph:
             targets: A list of integer identifiers for vertices
                     directed from the hyperedge.
             label: A label to identify the hyperedge when drawing.
+            identity: Whether the new hyperedge is an identity or not.
 
         Returns:
             edge_id: A unique integer identifier for the hypergraph
@@ -108,10 +116,26 @@ class Hypergraph:
               'Hyperedge attached to vertices that are not in the hypergraph.'
             )
 
+        # The source and target types must be the same for identity hyperedges
+        if identity:
+            if (len(sources) != len(targets)
+                or any(self.vertices[s].vtype != self.vertices[o].vtype
+                       for s, o in zip(sources, targets))):
+                raise ValueError(
+                    'Source and target types of identity hyperedges must match'
+                )
+
         # Give the new hyperedge a unique integer identifier
         edge_id = max((i for i in self.edges.keys()), default=-1) + 1
-        new_edge = Hyperedge(sources, targets, label)
+        new_edge = Hyperedge(sources, targets, label, identity)
         self.edges[edge_id] = new_edge
+
+        # Register the edge as source or target of relevant vertices
+        for s in sources:
+            self.vertices[s].targets.add(edge_id)
+        for t in targets:
+            self.vertices[t].sources.add(edge_id)
+
         return edge_id
 
     def parallel_comp(self, other: Hypergraph,
