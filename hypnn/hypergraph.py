@@ -213,7 +213,7 @@ class Hypergraph:
         for vertex_id, vertex in other.vertices.items():
             # Inputs of other must be mapped to outputs of self
             if vertex_id in other.inputs:
-                pass
+                continue
             vertex_map[vertex_id] = composed.add_vertex(vertex.vtype)
 
         # Identify output vertices of self with input vertices of other

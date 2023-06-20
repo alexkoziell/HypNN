@@ -1,6 +1,14 @@
 hypnn package
 =============
 
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 4
+
+   hypnn.gui
+
 Submodules
 ----------
 
