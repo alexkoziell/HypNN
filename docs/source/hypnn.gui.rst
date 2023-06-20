@@ -12,6 +12,14 @@ hypnn.gui.drawinfo module
    :undoc-members:
    :show-inheritance:
 
+hypnn.gui.mpldraw module
+------------------------
+
+.. automodule:: hypnn.gui.mpldraw
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Module contents
 ---------------
 
