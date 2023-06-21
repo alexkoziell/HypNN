@@ -62,8 +62,9 @@ class Hypergraph:
     are referred to as boundary vertices.
 
     The :py:class:`Hypergraph` instance begins with no vertices or hyperedges,
-    which can then be added using :py:meth:`add_vertex` and
-    :py:meth:`add_edge` to build out the hypergraph.
+    which can then be added using :py:meth:`create_vertex`,
+    :py:meth:`add_vertex`, :py:meth:`create_edge` and :py:meth:`add_edge`
+    to build out the hypergraph.
     """
 
     def __init__(self) -> None:
@@ -73,27 +74,44 @@ class Hypergraph:
         self.inputs: List[int] = []
         self.outputs: List[int] = []
 
-    def add_vertex(self, vtype: Any | None = None) -> int:
-        """Add a vertex to the hypergraph.
+    @staticmethod
+    def create_vertex(vtype: Any | None = None) -> Vertex:
+        """Create a vertex of the appropriate python class.
+
+        Override this method in subclasses in order to specify the
+        vertex type.
 
         Args:
             vtype: A type associated with the vertex.
 
         Returns:
+            A :py:class:`Vertex` instance.
+        """
+        return Vertex(vtype)
+
+    def add_vertex(self, vertex: Vertex) -> int:
+        """Add a vertex to the hypergraph.
+
+        Args:
+            vertex: The vertex to be added to the hypergraph.
+
+        Returns:
             vertex_id: A unique integer identifier for the hypergraph
-                       to reference the newly created vertex.
+                       to reference the newly added vertex.
         """
         # Give the new vertex a unique integer identifier
         vertex_id = max((i for i in self.vertices.keys()), default=-1) + 1
-        new_vertex = Vertex(vtype)
-        self.vertices[vertex_id] = new_vertex
+        self.vertices[vertex_id] = vertex
         return vertex_id
 
-    def add_edge(self,
-                 sources: List[int], targets: List[int],
-                 label: str | None = None,
-                 identity: bool = False) -> int:
-        """Add a new hyperedge to the hypergraph.
+    @staticmethod
+    def create_edge(sources: List[int], targets: List[int],
+                    label: str | None = None,
+                    identity: bool = False) -> Hyperedge:
+        """Create a hyperedge of the appropriate python class.
+
+        Override this method in subclasses in order to specify the
+        hyperedge type.
 
         Args:
             sources: A list of integer identifiers for vertices
@@ -104,38 +122,71 @@ class Hypergraph:
             identity: Whether the new hyperedge is an identity or not.
 
         Returns:
+            A :py:class:`Hyperedge` instance.
+        """
+        return Hyperedge(sources, targets, label, identity)
+
+    def add_edge(self, edge: Hyperedge) -> int:
+        """Add a new hyperedge to the hypergraph.
+
+        Args:
+            edge: The hyperedge to be added to the hypergraph.
+
+        Returns:
             edge_id: A unique integer identifier for the hypergraph
-                     to reference the newly created edge.
+                     to reference the newly added hyperedge.
         """
         # Check all the vertex identifiers in sources and targets correspond to
         # existing vertices in the hypergraph.
         if not all(vertex in self.vertices
-                   for boundary in (sources, targets)
+                   for boundary in (edge.sources, edge.targets)
                    for vertex in boundary):
             raise ValueError(
               'Hyperedge attached to vertices that are not in the hypergraph.'
             )
 
         # The source and target types must be the same for identity hyperedges
-        if identity:
-            if (len(sources) != len(targets)
+        if edge.identity:
+            if (len(edge.sources) != len(edge.targets)
                 or any(self.vertices[s].vtype != self.vertices[o].vtype
-                       for s, o in zip(sources, targets))):
+                       for s, o in zip(edge.sources, edge.targets))):
                 raise ValueError(
                     'Source and target types of identity hyperedges must match'
                 )
 
         # Give the new hyperedge a unique integer identifier
         edge_id = max((i for i in self.edges.keys()), default=-1) + 1
-        new_edge = Hyperedge(sources, targets, label, identity)
-        self.edges[edge_id] = new_edge
+        self.edges[edge_id] = edge
 
         # Register the edge as source or target of relevant vertices
-        for s in sources:
+        for s in edge.sources:
             self.vertices[s].targets.add(edge_id)
-        for t in targets:
+        for t in edge.targets:
             self.vertices[t].sources.add(edge_id)
 
+        return edge_id
+
+    def add_identity(self, sources: List[int], targets: List[int]) -> int:
+        """Create and add a new identity hyperedge to the hypergraph.
+
+        Override this methods in subclasses to specify the operational
+        behaviour of identity hyperedges. Recall that identities for each
+        type are unique.
+
+        Args:
+            sources: A list of integer identifiers for vertices
+                directed to the hyperedge.
+            targets: A list of integer identifiers for vertices
+                    directed from the hyperedge.
+
+        Returns:
+            edge_id: A unique integer identifier for the hypergraph
+                     to reference the newly added hyperedge.
+        """
+        edge = self.create_edge(sources, targets,
+                                label='id', identity=True)
+        # Checks for compatible sources and targets done in add_edge
+        edge_id = self.add_edge(edge)
         return edge_id
 
     def parallel_comp(self, other: Hypergraph,
@@ -153,20 +204,30 @@ class Hypergraph:
         # If in_place, modify self directly
         composed = self if in_place else deepcopy(self)
 
-        # Add vertices to self for each vertex in other, and create a
+        # Add copies of each vertex in other to self and create a
         # one-to-one correspondence between the added vertices and
         # the vertices of other
         vertex_map: Dict[int, int] = {}
         for vertex_id, vertex in other.vertices.items():
-            vertex_map[vertex_id] = composed.add_vertex(vertex.vtype)
+            # Copying allows additional data to be carried over in subclasses
+            copied_vertex = deepcopy(vertex)
+            # Reset the sources and targets, these will be updated later
+            copied_vertex.sources.clear()
+            copied_vertex.targets.clear()
+            vertex_map[vertex_id] = composed.add_vertex(copied_vertex)
 
-        # Add edges to self for each edge in other, with connectivity that
+        # Add copies of edge in other to self, with connectivity that
         # matches that of other in a compatible way with the vertex map
         # established above
         for edge in other.edges.values():
-            composed.add_edge([vertex_map[s] for s in edge.sources],
-                              [vertex_map[t] for t in edge.targets],
-                              edge.label)
+            # Copying allows additional data to be carried over in subclasses
+            copied_edge = deepcopy(edge)
+            # Update the sources and targets to their images in composed
+            copied_edge.sources = [vertex_map[s] for s in edge.sources]
+            copied_edge.targets = [vertex_map[t] for t in edge.targets]
+            # The add_edge method will sort out the sources and targets
+            # of the vertices copied from `other`
+            composed.add_edge(copied_edge)
 
         # For parallel composition, append the boundary vertices of other
         # to the boundary vertices of self.
@@ -206,15 +267,20 @@ class Hypergraph:
         # If in_place, modify self directly
         composed = self if in_place else deepcopy(self)
 
-        # Add vertices to self for each non-boundary vertex in other,
-        # and create a one-to-one correspondence between the added vertices
+        # Copy each non-boundary vertex in other to self and create a
+        # one-to-one correspondence between the copied vertices
         # and the vertices of other
         vertex_map: Dict[int, int] = {}
         for vertex_id, vertex in other.vertices.items():
             # Inputs of other must be mapped to outputs of self
             if vertex_id in other.inputs:
                 continue
-            vertex_map[vertex_id] = composed.add_vertex(vertex.vtype)
+            # Copying allows additional data to be carried over in subclasses
+            copied_vertex = deepcopy(vertex)
+            # Reset the sources and targets, these will be updated later
+            copied_vertex.sources.clear()
+            copied_vertex.targets.clear()
+            vertex_map[vertex_id] = composed.add_vertex(copied_vertex)
 
         # Identify output vertices of self with input vertices of other
         for out_vid, in_vid in zip(composed.outputs, other.inputs):
@@ -223,13 +289,18 @@ class Hypergraph:
         # The outputs of the composition correspond to the outputs of other
         composed.outputs = [vertex_map[o] for o in other.outputs]
 
-        # Add edges to self for each edge in other, with connectivity that
+        # Copy edges of other into self, with connectivity that
         # matches that of other in a compatible way with the vertex map
         # established above
         for edge in other.edges.values():
-            composed.add_edge([vertex_map[s] for s in edge.sources],
-                              [vertex_map[t] for t in edge.targets],
-                              edge.label)
+            # Copying allows additional data to be carried over in subclasses
+            copied_edge = deepcopy(edge)
+            # Update the sources and targets to their images in composed
+            copied_edge.sources = [vertex_map[s] for s in edge.sources]
+            copied_edge.targets = [vertex_map[t] for t in edge.targets]
+            # The add_edge method will sort out the sources and targets
+            # of the vertices copied from `other`
+            composed.add_edge(copied_edge)
 
         # To make it clear when an in place modifications has been made,
         # return None if in_place
@@ -249,14 +320,14 @@ class Hypergraph:
         Returns:
             edge_id: The identifier of the newly created identity hyperedge.
         """
-        # Create a new vertex with the same vtype as the original vertex
+        # Create a new vertex with the same attributes as the original vertex
         old_vertex = self.vertices[vertex_id]
-        new_vertex_id = self.add_vertex(old_vertex.vtype)
-        new_vertex = self.vertices[new_vertex_id]
+        # Sources and targets will be updated later
+        new_vertex = deepcopy(old_vertex)
+        new_vertex_id = self.add_vertex(new_vertex)
 
         # Add the new identity hyperedge
-        edge_id = self.add_edge([vertex_id], [new_vertex_id],
-                                label='id', identity=True)
+        edge_id = self.add_identity([vertex_id], [new_vertex_id])
         # Sources of the new vertex is just the new identity edge, and
         # targets of are those of the original vertex
         new_vertex.sources = {edge_id}
