@@ -14,7 +14,7 @@
 """Functionality for drawing hypergraphs with matplotlib."""
 
 from __future__ import annotations
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any, Callable, Dict, List, Sequence, Set, Tuple
 
 from matplotlib.backend_bases import MouseEvent
 from matplotlib.patches import Circle, PathPatch, Rectangle
@@ -38,10 +38,26 @@ class MplVertex(Circle):
     """
 
     def __init__(self, xy: Sequence[float], radius: float,
+                 label: Callable[[], str] | None = None,
                  **kwargs: Any) -> None:
         """Initialize an :py:class:`MplVertex` object."""
+        self.label = label
         self.connected_wires: Set[MplWire] = set()
+        self.annotation: Annotation | None = None
         super().__init__(xy, radius, **kwargs)
+
+    def update_annotation(self) -> None:
+        """Annotate the box for this vertex, if applicable."""
+        if self.annotation is not None:
+            self.annotation.set_position(self.get_center())
+        elif self.label is not None:
+            ax = self.axes
+            label = self.label()
+            x, y = self.get_center()
+            self.annotation = ax.annotate(label,
+                                          (x, y - 2.5 * self.radius),
+                                          weight='bold',
+                                          ha='center', va='center')
 
 
 class MplEdge(Rectangle):
@@ -74,7 +90,7 @@ class MplEdge(Rectangle):
         self.label = str(label)
         self.sources = sources
         self.targets = targets
-        self.annotation: Optional[Annotation] = None
+        self.annotation: Annotation | None = None
         self.connected_wires: Set[MplWire] = set()
         super().__init__(xy, width, height, **kwargs)
 
@@ -175,10 +191,12 @@ class MplHypergraph:
     y_scale: float = 2e-1
 
     def __init__(self, hypergraph: Hypergraph,
-                 layout: str = 'convex_opt') -> None:
+                 layout: str = 'convex_opt',
+                 annotate_vertices: bool = False) -> None:
         """Initialize an :py:class:`MplHypergraph` object."""
         graph_draw_info = HypergraphDrawInfo(hypergraph, layout)
         self.draw_info = graph_draw_info
+        self.annotate_vertices = annotate_vertices
         self.vertices: Dict[int, MplVertex] = dict()
         self.edges: Dict[int, MplEdge] = dict()
         self.wires: Dict[Tuple[MplVertex | MplEdge,
@@ -196,8 +214,8 @@ class MplHypergraph:
             x = vertex_draw_info.x * self.x_scale
             y = vertex_draw_info.y * self.y_scale
             radius = self.vertex_radius * (self.x_scale + self.y_scale)
-
-            self.vertices[vertex_id] = MplVertex((x, y), radius,
+            label = vertex_draw_info.label
+            self.vertices[vertex_id] = MplVertex((x, y), radius, label,
                                                  color='black')
 
     def init_edges(self) -> None:
@@ -284,6 +302,9 @@ class MplHypergraph:
         # Plot vertices over wires
         for vertex in self.vertices.values():
             ax.add_patch(vertex)
+            # Must be called after adding vertex to axes
+            if self.annotate_vertices:
+                vertex.update_annotation()
 
         # Set the aspect ratio and auto-adjust limits of the plot
         ax.set_aspect('auto', 'box')
@@ -338,22 +359,21 @@ class MplHypergraph:
             # if abs(dx) < 5e-2 and abs(dy) < 5e-2:
             #     return
 
-            updated_edges = []
-
             if len(self.drag_vertices) > 0:
                 # Update the position of vertices being dragged
                 for idx, vertex in self.drag_vertices.items():
                     prev_x, prev_y = vertex.get_center()
                     vertex.set_center((prev_x + dx, prev_y + dy))
+                    if self.annotate_vertices:
+                        vertex.update_annotation()
 
             if len(self.drag_edges) > 0:
                 # Update the position of edges being dragged
-                for idx, edge in self.drag_edges.items():
+                for edge in self.drag_edges.values():
                     prev_x = edge.get_x()
                     prev_y = edge.get_y()
                     edge.set_xy((prev_x + dx, prev_y + dy))
                     edge.update_annotation()
-                    updated_edges.append(idx)
 
             # Update the wires
             for wire in self.drag_wires:

@@ -14,7 +14,7 @@
 """Functionality for laying out hypergraphs in cartesian coordinates."""
 
 from dataclasses import dataclass
-from typing import Dict
+from typing import Callable, Dict
 
 import cvxpy as cp
 from cvxpy.expressions.constants.constant import Constant
@@ -33,6 +33,8 @@ class VertexDrawInfo:
     """x-coordinate for the vertex."""
     y: float
     """y-coordinate for the vertex."""
+    label: Callable[[], str]
+    """Retrieves a label for annotating the vertex."""
 
 
 @dataclass
@@ -73,8 +75,10 @@ class HypergraphDrawInfo:
 
         # Initialize vertex and edge graphics items for decomposed hypergraph
         self.vertices = {
-            vertex_id: VertexDrawInfo(0, 0)
-            for vertex_id in decomposed.vertices.keys()
+            vertex_id: VertexDrawInfo(
+                0, 0, vertex.label if hasattr(vertex, 'label') else None
+            )
+            for vertex_id, vertex in decomposed.vertices.items()
         }
         self.edges = {
             edge_id: EdgeDrawInfo(0, 0, edge.label, edge.identity,
