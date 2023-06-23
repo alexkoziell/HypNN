@@ -16,7 +16,7 @@
 from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any
 
 
 @dataclass
@@ -30,9 +30,9 @@ class Vertex:
 
     vtype: Any | None = None
     """A type associated with the vertex."""
-    sources: Set[int] = field(default_factory=set)
+    sources: set[int] = field(default_factory=set)
     """A set of integer identifiers for hyperedges into the vertex."""
-    targets: Set[int] = field(default_factory=set)
+    targets: set[int] = field(default_factory=set)
     """A set of integer identifiers for hyperedges from the hyperedge."""
 
 
@@ -44,9 +44,9 @@ class Hyperedge:
     source and target vertices, implemented by storing them as lists.
     """
 
-    sources: List[int]
+    sources: list[int]
     """A list of integer identifiers for vertices into the hyperedge."""
-    targets: List[int]
+    targets: list[int]
     """A list of integer identifiers for vertices from the hyperedge."""
     label: str | None = None
     """A label to identify the hyperedge when drawing."""
@@ -69,10 +69,10 @@ class Hypergraph:
 
     def __init__(self) -> None:
         """Initialize a `Hypergraph`."""
-        self.vertices: Dict[int, Vertex] = {}
-        self.edges: Dict[int, Hyperedge] = {}
-        self.inputs: List[int] = []
-        self.outputs: List[int] = []
+        self.vertices: dict[int, Vertex]
+        self.edges: dict[int, Hyperedge]
+        self.inputs: list[int] = []
+        self.outputs: list[int] = []
 
     @staticmethod
     def create_vertex(vtype: Any | None = None) -> Vertex:
@@ -105,7 +105,7 @@ class Hypergraph:
         return vertex_id
 
     @staticmethod
-    def create_edge(sources: List[int], targets: List[int],
+    def create_edge(sources: list[int], targets: list[int],
                     label: str | None = None,
                     identity: bool = False) -> Hyperedge:
         """Create a hyperedge of the appropriate python class.
@@ -166,7 +166,7 @@ class Hypergraph:
 
         return edge_id
 
-    def add_identity(self, sources: List[int], targets: List[int]) -> int:
+    def add_identity(self, sources: list[int], targets: list[int]) -> int:
         """Create and add a new identity hyperedge to the hypergraph.
 
         Override this methods in subclasses to specify the operational
@@ -207,7 +207,7 @@ class Hypergraph:
         # Add copies of each vertex in other to self and create a
         # one-to-one correspondence between the added vertices and
         # the vertices of other
-        vertex_map: Dict[int, int] = {}
+        vertex_map: dict[int, int] = {}
         for vertex_id, vertex in other.vertices.items():
             # Copying allows additional data to be carried over in subclasses
             copied_vertex = deepcopy(vertex)
@@ -270,7 +270,7 @@ class Hypergraph:
         # Copy each non-boundary vertex in other to self and create a
         # one-to-one correspondence between the copied vertices
         # and the vertices of other
-        vertex_map: Dict[int, int] = {}
+        vertex_map: dict[int, int] = {}
         for vertex_id, vertex in other.vertices.items():
             # Inputs of other must be mapped to outputs of self
             if vertex_id in other.inputs:
@@ -354,7 +354,7 @@ class Hypergraph:
         return edge_id
 
     def layer_decomp(self, in_place: bool = False
-                     ) -> Tuple[Hypergraph, List[List[int]]]:
+                     ) -> tuple[Hypergraph, list[list[int]]]:
         """Decompose this hypergraph into layers of its hyperedges.
 
         Args:
@@ -372,15 +372,15 @@ class Hypergraph:
         decomposed = self if in_place else deepcopy(self)
 
         # This will become the final layer decomposition
-        edge_layers: List[List[int]] = []
+        edge_layers: list[list[int]] = []
         # The target vertices of the edge layer
         # most recently added to the decomposition
-        prev_vertex_layer: List[int] = []
+        prev_vertex_layer: list[int] = []
         # The vertices already sitting between two edge
         # layers already added to the decomposition
-        placed_vertices: Set[int] = set()
+        placed_vertices: set[int] = set()
         # Edges ready to be placed into the current layer
-        ready_edges: Set[int] = set()
+        ready_edges: set[int] = set()
 
         # Mark all input vertices as placed into the layer decomposition
         # if the input is also an output, split the vertex and insert an
@@ -394,10 +394,10 @@ class Hypergraph:
 
         # Place the edges into layers
         # Edges not yet placed into any layer
-        unplaced_edges: Set[int] = set(decomposed.edges.keys())
+        unplaced_edges: set[int] = set(decomposed.edges.keys())
         # Track newly created identity edges from this point
         # to ensure new layers contain at least one non-identity edge
-        new_identities: Set[int] = set()
+        new_identities: set[int] = set()
 
         while len(unplaced_edges) > 0:
             # If all the source vertices of an edge have been placed,
@@ -422,7 +422,7 @@ class Hypergraph:
 
             # Populate the current layer with edges that are ready to
             # be placed, and remove them from the set of unplaced edges
-            current_layer: List[int] = []
+            current_layer: list[int] = []
             for edge_id in ready_edges:
                 current_layer.append(edge_id)
                 unplaced_edges.discard(edge_id)
@@ -483,7 +483,7 @@ class Hypergraph:
             # Give edges in the current layers a 'vertical position score'
             # based on the center of mass of their source and/or
             # target vertices
-            edge_positions: Dict[int, float] = {edge_id: 0.0 for
+            edge_positions: dict[int, float] = {edge_id: 0.0 for
                                                 edge_id in decomposed.edges}
             for edge_id in fwd_pass_layer:
                 sources = decomposed.edges[edge_id].sources
