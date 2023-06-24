@@ -67,27 +67,15 @@ class Hypergraph:
     to build out the hypergraph.
     """
 
+    VertexType: type[Vertex] = Vertex
+    EdgeType: type[Hyperedge] = Hyperedge
+
     def __init__(self) -> None:
         """Initialize a `Hypergraph`."""
         self.vertices: dict[int, Vertex]
         self.edges: dict[int, Hyperedge]
         self.inputs: list[int] = []
         self.outputs: list[int] = []
-
-    @staticmethod
-    def create_vertex(vtype: Any | None = None) -> Vertex:
-        """Create a vertex of the appropriate python class.
-
-        Override this method in subclasses in order to specify the
-        vertex type.
-
-        Args:
-            vtype: A type associated with the vertex.
-
-        Returns:
-            A :py:class:`Vertex` instance.
-        """
-        return Vertex(vtype)
 
     def add_vertex(self, vertex: Vertex) -> int:
         """Add a vertex to the hypergraph.
@@ -103,28 +91,6 @@ class Hypergraph:
         vertex_id = max((i for i in self.vertices.keys()), default=-1) + 1
         self.vertices[vertex_id] = vertex
         return vertex_id
-
-    @staticmethod
-    def create_edge(sources: list[int], targets: list[int],
-                    label: str | None = None,
-                    identity: bool = False) -> Hyperedge:
-        """Create a hyperedge of the appropriate python class.
-
-        Override this method in subclasses in order to specify the
-        hyperedge type.
-
-        Args:
-            sources: A list of integer identifiers for vertices
-                    directed to the hyperedge.
-            targets: A list of integer identifiers for vertices
-                    directed from the hyperedge.
-            label: A label to identify the hyperedge when drawing.
-            identity: Whether the new hyperedge is an identity or not.
-
-        Returns:
-            A :py:class:`Hyperedge` instance.
-        """
-        return Hyperedge(sources, targets, label, identity)
 
     def add_edge(self, edge: Hyperedge) -> int:
         """Add a new hyperedge to the hypergraph.
@@ -183,8 +149,8 @@ class Hypergraph:
             edge_id: A unique integer identifier for the hypergraph
                      to reference the newly added hyperedge.
         """
-        edge = self.create_edge(sources, targets,
-                                label='id', identity=True)
+        edge = self.EdgeType(sources, targets,
+                             label='id', identity=True)
         # Checks for compatible sources and targets done in add_edge
         edge_id = self.add_edge(edge)
         return edge_id
