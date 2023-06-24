@@ -16,13 +16,13 @@
 from __future__ import annotations
 from typing import Any, Callable, Dict, List, Sequence, Set, Tuple
 
-from matplotlib.backend_bases import MouseEvent
-from matplotlib.patches import Circle, PathPatch, Rectangle
-from matplotlib.path import Path
-import matplotlib.pyplot as plt
-from matplotlib.text import Annotation
+from matplotlib.backend_bases import MouseEvent  # type: ignore
+from matplotlib.patches import Circle, PathPatch, Rectangle  # type: ignore
+from matplotlib.path import Path  # type: ignore
+import matplotlib.pyplot as plt  # type: ignore
+from matplotlib.text import Annotation  # type: ignore
 
-from hypnn.hypergraph import Hypergraph
+from hypnn.hypergraph import Hyperedge, Hypergraph, Vertex
 from hypnn.gui.drawinfo import HypergraphDrawInfo
 
 
@@ -56,7 +56,6 @@ class MplVertex(Circle):
             x, y = self.get_center()
             self.annotation = ax.annotate(label,
                                           (x, y - 2.5 * self.radius),
-                                          weight='bold',
                                           ha='center', va='center')
 
 
@@ -361,7 +360,7 @@ class MplHypergraph:
 
             if len(self.drag_vertices) > 0:
                 # Update the position of vertices being dragged
-                for idx, vertex in self.drag_vertices.items():
+                for vertex in self.drag_vertices.values():
                     prev_x, prev_y = vertex.get_center()
                     vertex.set_center((prev_x + dx, prev_y + dy))
                     if self.annotate_vertices:
@@ -396,20 +395,20 @@ class MplHypergraph:
 if __name__ == '__main__':
     stress_test = Hypergraph()
     for _ in range(18):
-        stress_test.add_vertex(Hypergraph.create_vertex())
+        stress_test.add_vertex(Vertex())
     stress_test.add_edge(
-        Hypergraph.create_edge([0, 1, 2], [3, 12, 16, 4], 'f')
+        Hypergraph.EdgeType([0, 1, 2], [3, 12, 16, 4], 'f')
     )
     stress_test.add_edge(
-        Hypergraph.create_edge([6, 13, 5, 9, 14], [11, 10], 'g')
+        Hypergraph.EdgeType([6, 13, 5, 9, 14], [11, 10], 'g')
     )
     stress_test.add_edge(
-        Hypergraph.create_edge([4, 3, 15, 8], [5, 6, 7], 'h')
+        Hypergraph.EdgeType([4, 3, 15, 8], [5, 6, 7], 'h')
     )
-    stress_test.add_edge(Hypergraph.create_edge([12], [], 'e1'))
-    stress_test.add_edge(Hypergraph.create_edge([16, 17], [], 'e2'))
-    stress_test.add_edge(Hypergraph.create_edge([], [13, 17, 14], 's1'))
-    stress_test.add_edge(Hypergraph.create_edge([], [15], 's2'))
+    stress_test.add_edge(Hyperedge([12], [], 'e1'))
+    stress_test.add_edge(Hyperedge([16, 17], [], 'e2'))
+    stress_test.add_edge(Hyperedge([], [13, 17, 14], 's1'))
+    stress_test.add_edge(Hyperedge([], [15], 's2'))
     stress_test.inputs = [2, 9, 8, 0, 1]
     stress_test.outputs = [10, 7, 11]
     stress_test_mpl = MplHypergraph(stress_test)
