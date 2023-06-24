@@ -53,6 +53,30 @@ class Hyperedge:
     identity: bool = False
     """Whether this hyperedge is an identity or not."""
 
+    @staticmethod
+    def create_identity(sources: list[int],
+                        targets: list[int]) -> Hyperedge:
+        """Return an identity hyperedge.
+
+        The source and target types of identities must be the same, and there
+        is a unique identity for each such type.
+        Thus only the source and target ids should be required
+        to build an identity edge.
+
+        Override this methods in subclasses to specify the operational
+        behaviour of identity hyperedges.
+
+        Args:
+            sources: A list of integer identifiers for vertices
+                directed to the hyperedge.
+            targets: A list of integer identifiers for vertices
+                    directed from the hyperedge.
+
+        Returns:
+            edge: An identity hyperedge.
+        """
+        return Hyperedge(sources, targets, label='id', identity=True)
+
 
 class Hypergraph:
     """A directed hypergraph with boundaries.
@@ -72,8 +96,8 @@ class Hypergraph:
 
     def __init__(self) -> None:
         """Initialize a `Hypergraph`."""
-        self.vertices: dict[int, Vertex]
-        self.edges: dict[int, Hyperedge]
+        self.vertices: dict[int, Vertex] = {}
+        self.edges: dict[int, Hyperedge] = {}
         self.inputs: list[int] = []
         self.outputs: list[int] = []
 
@@ -130,29 +154,6 @@ class Hypergraph:
         for t in edge.targets:
             self.vertices[t].sources.add(edge_id)
 
-        return edge_id
-
-    def add_identity(self, sources: list[int], targets: list[int]) -> int:
-        """Create and add a new identity hyperedge to the hypergraph.
-
-        Override this methods in subclasses to specify the operational
-        behaviour of identity hyperedges. Recall that identities for each
-        type are unique.
-
-        Args:
-            sources: A list of integer identifiers for vertices
-                directed to the hyperedge.
-            targets: A list of integer identifiers for vertices
-                    directed from the hyperedge.
-
-        Returns:
-            edge_id: A unique integer identifier for the hypergraph
-                     to reference the newly added hyperedge.
-        """
-        edge = self.EdgeType(sources, targets,
-                             label='id', identity=True)
-        # Checks for compatible sources and targets done in add_edge
-        edge_id = self.add_edge(edge)
         return edge_id
 
     def parallel_comp(self, other: Hypergraph,
@@ -293,18 +294,20 @@ class Hypergraph:
         new_vertex_id = self.add_vertex(new_vertex)
 
         # Add the new identity hyperedge
-        edge_id = self.add_identity([vertex_id], [new_vertex_id])
+        identity_edge = self.EdgeType.create_identity([vertex_id],
+                                                      [new_vertex_id])
+        identity_id = self.add_edge(identity_edge)
         # Sources of the new vertex is just the new identity edge, and
         # targets of are those of the original vertex
-        new_vertex.sources = {edge_id}
+        new_vertex.sources = {identity_id}
         new_vertex.targets = set(
             target_id for target_id in old_vertex.targets
             # add_edge method added identity edge as target of old vertex
-            if target_id != edge_id
+            if target_id != identity_id
         )
 
         # New targets of the original vertex is just the new identity edge
-        old_vertex.targets = {edge_id}
+        old_vertex.targets = {identity_id}
         # Update the sources lists of any targets of the new vertex to replace
         # the orignal vertex with the new vertex
         for target_id in new_vertex.targets:
@@ -317,7 +320,7 @@ class Hypergraph:
         self.outputs = [output_id if output_id != vertex_id else new_vertex_id
                         for output_id in self.outputs]
 
-        return edge_id
+        return identity_id
 
     def layer_decomp(self, in_place: bool = False
                      ) -> tuple[Hypergraph, list[list[int]]]:
