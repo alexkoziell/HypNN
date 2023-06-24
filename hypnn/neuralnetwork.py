@@ -14,7 +14,7 @@
 """Neural networks as hypergraphs."""
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Callable, List, Tuple
+from typing import Callable
 
 import numpy as np
 
@@ -31,7 +31,7 @@ class Variable(Vertex):
     be tuple of integers indicating the tensor dimensions.
     """
 
-    vtype: Tuple[int, ...]
+    vtype: tuple[int, ...]
     """The dimensions of the tensor values this vertex can hold."""
     value: np.ndarray | None = None
     """The value carried by this vertex."""
@@ -80,10 +80,10 @@ class Operation(Hyperedge):
         operation: The numerical operation performed by this hyperedge.
     """
 
-    def __init__(self, operation: Callable[[List[np.ndarray]],
-                                           List[np.ndarray]],
-                 sources: List[int],
-                 targets: List[int],
+    def __init__(self, operation: Callable[[list[np.ndarray]],
+                                           list[np.ndarray]],
+                 sources: list[int],
+                 targets: list[int],
                  label: str | None = None,
                  identity: bool = False) -> None:
         """Initialize an :py:class:`Operation`."""
