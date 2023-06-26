@@ -83,8 +83,8 @@ class Operation(Hyperedge):
         operation: The numerical operation performed by this hyperedge.
     """
 
-    def __init__(self, operation: Callable[[list[np.ndarray]],
-                                           list[np.ndarray]],
+    def __init__(self, operation: Callable[[list[np.ndarray | None]],
+                                           list[np.ndarray | None]],
                  sources: list[int],
                  targets: list[int],
                  label: str | None = None,
@@ -116,3 +116,81 @@ class NeuralNetwork(BaseHypergraph[Variable, Operation]):
             )
         return Operation(lambda x: x, sources, targets,
                          label='id', identity=True)
+
+    def topological_sort(self) -> list[int]:
+        """Sorts hyperedges for performing computation.
+
+        The hyperedges are sorted into a list such that, provided values
+        for all input variables are provided, they can be applied in sequence
+        with the computations performed by all previous hyperedges in the list
+        ensuring all the source variables of the current hyperedge have been
+        evaluated.
+
+        Returns:
+            sorted_edges: A list of hyperedge identifiers sorted to allow
+                          forward or backward computation.
+        """
+        # Track which variables have been evaluated to determine which
+        # hyperedges would be ready to perform their operation
+        # given the edges currently in sorted_edges had been evaluated.
+        # Input (output) vertices are assumed to start evaluated.
+        evaluated_variables: set[int] = set(self.inputs)
+
+        # Hyperedges with no source vertices are immediately ready to evaluate
+        sorted_edges = [edge_id for edge_id, edge in self.edges.items()
+                        if len(edge.sources) == 0]
+        # Register appropriate vertices as evaluated
+        for edge_id in sorted_edges:
+            edge = self.edges[edge_id]
+            evaluated_variables |= set(edge.targets)
+
+        # TODO: proof that this terminates
+        while len(evaluated_variables) < len(self.vertices):
+            new_evaluated_variables: set[int] = set()
+            # The only edges that would be ready to evaluate would have
+            # all their source vertices evaluated, so only check the targets
+            # of evaluated vertices to save checking all the edges
+            for vertex_id in evaluated_variables:
+                edge_ids = self.vertices[vertex_id].targets
+                for edge_id in edge_ids:
+                    # Skip edges already in sorted_edges
+                    # (they would have already been evaluated)
+                    if edge_id in sorted_edges:
+                        continue
+                    edge = self.edges[edge_id]
+                    vertex_ids = edge.sources
+                    # Eagerly add edges ready to evaluate to sorted_edges
+                    if all(vertex_id in evaluated_variables
+                           for vertex_id in vertex_ids):
+                        sorted_edges.append(edge_id)
+                        # Register variables that would now be evaluated
+                        new_evaluated_variables |= set(edge.targets)
+            # If no new variables have been evaluated, the next loop iteration
+            # will be identical, and so the loop itself won't terminate.
+            if len(new_evaluated_variables) == 0:
+                raise RuntimeError(
+                    'Could not sort hyperedges. Is the hypergraph acyclic?'
+                )
+            # Once all edges that were ready to evaluate at the beginning of
+            # of this loop iteration have been added to sorted_edges, update
+            # evaluated_variables for another loop
+            evaluated_variables |= new_evaluated_variables
+
+        return sorted_edges
+
+    def compute(self):
+        """Perform a computation through the network.
+
+        This can only be done if input variable values are specified.
+        """
+        # Sort the edges in a valid sequence to evaluate them in
+        edges_to_compute = self.topological_sort()
+
+        # Perform the operations in sequence
+        for edge_id in edges_to_compute:
+            edge = self.edges[edge_id]
+            source_values = [self.vertices[source].value
+                             for source in edge.sources]
+            target_values = edge.operation(source_values)
+            for target, value in zip(edge.targets, target_values):
+                self.vertices[target].set_value(value)
