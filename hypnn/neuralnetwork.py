@@ -83,8 +83,8 @@ class Operation(Hyperedge):
         operation: The numerical operation performed by this hyperedge.
     """
 
-    def __init__(self, operation: Callable[[list[np.ndarray | None]],
-                                           list[np.ndarray | None]],
+    def __init__(self, operation: Callable[[list[np.ndarray]],
+                                           list[np.ndarray]],
                  sources: list[int],
                  targets: list[int],
                  label: str | None = None,
@@ -92,23 +92,6 @@ class Operation(Hyperedge):
         """Initialize an :py:class:`Operation`."""
         self.operation = operation
         super().__init__(sources, targets, label, identity)
-
-    @staticmethod
-    def create_identity(sources: list[int],
-                        targets: list[int]) -> Operation:
-        """Return an identity operation.
-
-        Args:
-            sources: A list of integer identifiers for vertices
-                directed to the hyperedge.
-            targets: A list of integer identifiers for vertices
-                    directed from the hyperedge.
-
-        Returns:
-            operation: An identity operation.
-        """
-        return Operation(lambda x: x, sources, targets,
-                         label='id', identity=True)
 
 
 class NeuralNetwork(BaseHypergraph[Variable, Operation]):
@@ -121,3 +104,15 @@ class NeuralNetwork(BaseHypergraph[Variable, Operation]):
 
     vertex_type = Variable
     edge_type = Operation
+
+    def create_identity(self, sources: list[int],
+                        targets: list[int]) -> Operation:
+        """Create an identity operation."""
+        if (len(sources) != len(targets) or
+            any(self.vertices[s].vtype != self.vertices[t].vtype
+                for s, t in zip(sources, targets))):
+            raise ValueError(
+                'Identity source and target types must match.'
+            )
+        return Operation(lambda x: x, sources, targets,
+                         label='id', identity=True)
