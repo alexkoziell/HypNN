@@ -18,7 +18,7 @@ from typing import Callable
 
 import numpy as np
 
-from hypnn.hypergraph import Vertex, Hyperedge, Hypergraph
+from hypnn.hypergraph import Vertex, Hyperedge, BaseHypergraph
 
 
 @dataclass
@@ -63,8 +63,11 @@ class Variable(Vertex):
         if self.value is not None and self.value.shape != self.vtype:
             raise ValueError('Incompatible value assigned to vertex.')
 
-    def set_value(self, value: np.ndarray) -> None:
+    def set_value(self, value: np.ndarray | None) -> None:
         """Set this variable to a specific value."""
+        if value is None:
+            self.value = value
+            return
         if value.shape != self.vtype:
             raise ValueError('Incompatible value assigned to vertex.')
         self.value = value
@@ -80,8 +83,8 @@ class Operation(Hyperedge):
         operation: The numerical operation performed by this hyperedge.
     """
 
-    def __init__(self, operation: Callable[[list[np.ndarray]],
-                                           list[np.ndarray]],
+    def __init__(self, operation: Callable[[list[np.ndarray | None]],
+                                           list[np.ndarray | None]],
                  sources: list[int],
                  targets: list[int],
                  label: str | None = None,
@@ -108,13 +111,12 @@ class Operation(Hyperedge):
                          label='id', identity=True)
 
 
-class NeuralNetwork(Hypergraph):
+class NeuralNetwork(BaseHypergraph[Variable, Operation]):
     """A hypergraph representing a neural network.
 
-    Vertices send values to their target hyperedges, which
-    perform computations on their recieved values and transmit
-    them to their target vertices. This occurs from the inputs
-    to the outputs of the hypergraph.
+    Vertices send values to their target hyperedges, which perform
+    computations on their recieved values and transmit them to their target
+    vertices. This occurs from the inputs to the outputs of the hypergraph.
     """
 
     vertex_type = Variable

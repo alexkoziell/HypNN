@@ -397,13 +397,13 @@ if __name__ == '__main__':
     for _ in range(18):
         stress_test.add_vertex(Vertex())
     stress_test.add_edge(
-        Hypergraph.EdgeType([0, 1, 2], [3, 12, 16, 4], 'f')
+        Hyperedge([0, 1, 2], [3, 12, 16, 4], 'f')
     )
     stress_test.add_edge(
-        Hypergraph.EdgeType([6, 13, 5, 9, 14], [11, 10], 'g')
+        Hyperedge([6, 13, 5, 9, 14], [11, 10], 'g')
     )
     stress_test.add_edge(
-        Hypergraph.EdgeType([4, 3, 15, 8], [5, 6, 7], 'h')
+        Hyperedge([4, 3, 15, 8], [5, 6, 7], 'h')
     )
     stress_test.add_edge(Hyperedge([12], [], 'e1'))
     stress_test.add_edge(Hyperedge([16, 17], [], 'e2'))

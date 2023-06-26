@@ -22,7 +22,7 @@ from cvxpy.expressions.variable import Variable
 from cvxpy.problems.objective import Minimize
 from cvxpy.problems.problem import Problem
 
-from hypnn.hypergraph import Hypergraph
+from hypnn.hypergraph import BaseHypergraph
 
 
 @dataclass
@@ -60,7 +60,8 @@ class HypergraphDrawInfo:
         graph: The :py:class:`Hypergraph` instance to be rendered.
     """
 
-    def __init__(self, graph: Hypergraph, layout: str = 'convex_opt') -> None:
+    def __init__(self, graph: BaseHypergraph,
+                 layout: str = 'convex_opt') -> None:
         """Initialize a :py:class:`HypergraphDrawInfo` instance."""
         self.graph = graph
         self.vertices: Dict[int, VertexDrawInfo] = {}

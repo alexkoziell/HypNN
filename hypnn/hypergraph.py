@@ -14,9 +14,10 @@
 """Vertex, Hyperedge and Hypergraph classes."""
 
 from __future__ import annotations
+from abc import ABC, abstractmethod
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 
 @dataclass
@@ -53,9 +54,33 @@ class Hyperedge:
     identity: bool = False
     """Whether this hyperedge is an identity or not."""
 
-    @staticmethod
-    def create_identity(sources: list[int],
-                        targets: list[int]) -> Hyperedge:
+
+VertexType = TypeVar('VertexType', bound=Vertex)
+EdgeType = TypeVar('EdgeType', bound=Hyperedge)
+
+
+class BaseHypergraph(ABC, Generic[VertexType, EdgeType]):
+    """Base class for :py:class:`Hypergraph`.
+
+    This is to allow :py:attr:`vertices` and :py:attr:`edges`
+    to be `dict[int, VertexType]` and `dict[int, EdgeType]` types for arbitrary
+    subclasses `VertexType` and `EdgeType` of :py:class:`Vertex` and
+    :py:class:`Hyperedge`, respectively.
+    """
+
+    vertex_class: type[VertexType]
+    edge_class: type[EdgeType]
+
+    def __init__(self) -> None:
+        """Initialize a :py:class:`BaseHypergraph` subclass."""
+        self.vertices: dict[int, VertexType] = {}
+        self.edges: dict[int, EdgeType] = {}
+        self.inputs: list[int] = []
+        self.outputs: list[int] = []
+
+    @abstractmethod
+    def create_identity(self, sources: list[int],
+                        targets: list[int]) -> EdgeType:
         """Return an identity hyperedge.
 
         The source and target types of identities must be the same, and there
@@ -63,7 +88,7 @@ class Hyperedge:
         Thus only the source and target ids should be required
         to build an identity edge.
 
-        Override this methods in subclasses to specify the operational
+        Implement this method in subclasses to specify the operational
         behaviour of identity hyperedges.
 
         Args:
@@ -75,33 +100,9 @@ class Hyperedge:
         Returns:
             edge: An identity hyperedge.
         """
-        return Hyperedge(sources, targets, label='id', identity=True)
+        ...
 
-
-class Hypergraph:
-    """A directed hypergraph with boundaries.
-
-    This particular flavour of hypergraph has two totally ordered sets of
-    priviledged vertices: the input and output vertices. Together, these
-    are referred to as boundary vertices.
-
-    The :py:class:`Hypergraph` instance begins with no vertices or hyperedges,
-    which can then be added using :py:meth:`create_vertex`,
-    :py:meth:`add_vertex`, :py:meth:`create_edge` and :py:meth:`add_edge`
-    to build out the hypergraph.
-    """
-
-    VertexType: type[Vertex] = Vertex
-    EdgeType: type[Hyperedge] = Hyperedge
-
-    def __init__(self) -> None:
-        """Initialize a `Hypergraph`."""
-        self.vertices: dict[int, Vertex] = {}
-        self.edges: dict[int, Hyperedge] = {}
-        self.inputs: list[int] = []
-        self.outputs: list[int] = []
-
-    def add_vertex(self, vertex: Vertex) -> int:
+    def add_vertex(self, vertex: VertexType) -> int:
         """Add a vertex to the hypergraph.
 
         Args:
@@ -116,7 +117,7 @@ class Hypergraph:
         self.vertices[vertex_id] = vertex
         return vertex_id
 
-    def add_edge(self, edge: Hyperedge) -> int:
+    def add_edge(self, edge: EdgeType) -> int:
         """Add a new hyperedge to the hypergraph.
 
         Args:
@@ -156,8 +157,8 @@ class Hypergraph:
 
         return edge_id
 
-    def parallel_comp(self, other: Hypergraph,
-                      in_place: bool = False) -> Hypergraph | None:
+    def parallel_comp(self, other: BaseHypergraph,
+                      in_place: bool = False) -> BaseHypergraph | None:
         """Compose this hypergraph in parallel with `other`.
 
         Args:
@@ -205,8 +206,8 @@ class Hypergraph:
         # return None if in_place
         return None if in_place else composed
 
-    def sequential_comp(self, other: Hypergraph,
-                        in_place: bool = False) -> Hypergraph | None:
+    def sequential_comp(self, other: BaseHypergraph,
+                        in_place: bool = False) -> BaseHypergraph | None:
         """Compose this hypergraph in sequence with `other`.
 
         The outputs of `self` must match the inputs of `other` in order
@@ -294,8 +295,8 @@ class Hypergraph:
         new_vertex_id = self.add_vertex(new_vertex)
 
         # Add the new identity hyperedge
-        identity_edge = self.EdgeType.create_identity([vertex_id],
-                                                      [new_vertex_id])
+        identity_edge = self.create_identity([vertex_id],
+                                             [new_vertex_id])
         identity_id = self.add_edge(identity_edge)
         # Sources of the new vertex is just the new identity edge, and
         # targets of are those of the original vertex
@@ -323,7 +324,7 @@ class Hypergraph:
         return identity_id
 
     def layer_decomp(self, in_place: bool = False
-                     ) -> tuple[Hypergraph, list[list[int]]]:
+                     ) -> tuple[BaseHypergraph, list[list[int]]]:
         """Decompose this hypergraph into layers of its hyperedges.
 
         Args:
@@ -494,3 +495,31 @@ class Hypergraph:
 
             repr += current_row + '\n'
         return repr
+
+
+class Hypergraph(BaseHypergraph[Vertex, Hyperedge]):
+    """A directed hypergraph with boundaries.
+
+    This particular flavour of hypergraph has two totally ordered sets of
+    priviledged vertices: the input and output vertices. Together, these
+    are referred to as boundary vertices.
+
+    The :py:class:`Hypergraph` instance begins with no vertices or hyperedges,
+    which can then be added using :py:meth:`create_vertex`,
+    :py:meth:`add_vertex`, :py:meth:`create_edge` and :py:meth:`add_edge`
+    to build out the hypergraph.
+    """
+
+    VertexType = Vertex
+    EdgeType = Hyperedge
+
+    def create_identity(self, sources: list[int],
+                        targets: list[int]) -> Hyperedge:
+        """Create an identity hyperegde."""
+        if (len(sources) != len(targets) or
+            any(self.vertices[s].vtype != self.vertices[t].vtype
+                for s, t in zip(sources, targets))):
+            raise ValueError(
+                'Identity source and target types must match.'
+            )
+        return Hyperedge(sources, targets, label='id', identity=True)
