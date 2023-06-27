@@ -81,16 +81,22 @@ class Operation(Hyperedge):
 
     Attributes:
         operation: The numerical operation performed by this hyperedge.
+        reverse_derivative: The reverse derivative of :py:attr:`operation`,
+                            specified manually.
     """
 
     def __init__(self, operation: Callable[[list[np.ndarray | None]],
                                            list[np.ndarray | None]],
                  sources: list[int],
                  targets: list[int],
+                 reverse_derivative: Callable[[list[np.ndarray | None]],
+                                              list[np.ndarray | None]] | None
+                 = None,
                  label: str | None = None,
                  identity: bool = False) -> None:
         """Initialize an :py:class:`Operation`."""
         self.operation = operation
+        self.reverse_derivative = reverse_derivative
         super().__init__(sources, targets, label, identity)
 
 
@@ -115,6 +121,7 @@ class NeuralNetwork(BaseHypergraph[Variable, Operation]):
                 'Identity source and target types must match.'
             )
         return Operation(lambda x: x, sources, targets,
+                         reverse_derivative=lambda xs: [xs[1]] or [None],
                          label='id', identity=True)
 
     def topological_sort(self) -> list[int]:
@@ -194,3 +201,65 @@ class NeuralNetwork(BaseHypergraph[Variable, Operation]):
             target_values = edge.operation(source_values)
             for target, value in zip(edge.targets, target_values):
                 self.vertices[target].set_value(value)
+
+    def reverse_derivative(self) -> NeuralNetwork:
+        """Return the reverse derivative of this neural network hypergraph.
+
+        The reverse derivative will compute the derivatives of each
+        variable with respect to the outputs of the original graph via
+        reverse-mode differentiation.
+
+        Edges of type A -> B are mapped to edges of type A X B -> A
+
+        Returns:
+            reverse_derivative: The reverse derivative of this NN hypergraph.
+        """
+        reverse_derivative = NeuralNetwork()
+
+        # Keep track of which variable in the reverse derivative hypergraph
+        # evalutates the derivative of each variable in the original
+        vmap: dict[int, int] = {}
+
+        # First create the variables that correspond to derivatives
+        for vertex_id, vertex in self.vertices.items():
+            new_vertex = Variable(vertex.vtype, name=f'd{vertex.name}')
+            new_vertex_id = reverse_derivative.add_vertex(new_vertex)
+            vmap[vertex_id] = new_vertex_id
+
+        # Second, create the edges and additional input vertices
+        for edge in self.edges.values():
+            # Reverse derivative operations for all edges must be defined
+            if edge.reverse_derivative is None:
+                raise ValueError(
+                    f'No reverse derivative specified for {edge}'
+                )
+            # Create additional input vertices
+            new_vertices = [
+                Variable(self.vertices[vertex_id].vtype,
+                         name=self.vertices[vertex_id].name)
+                for vertex_id in edge.sources
+            ]
+            new_inputs = [
+                reverse_derivative.add_vertex(new_vertex)
+                for new_vertex in new_vertices
+            ]
+            reverse_derivative.inputs += new_inputs
+            # Create reverse derivative hyperedges
+            new_edge = Operation(
+                edge.reverse_derivative,
+                # source and targets are reversed
+                new_inputs +
+                [vmap[target_id] for target_id in edge.targets],
+                [vmap[source_id] for source_id in edge.sources],
+                label=f'R[{edge.label}]',
+            )
+            reverse_derivative.add_edge(new_edge)
+
+        # Set inputs and outputs of reverse derivative hypergraph that
+        # correspond to outputs and inputs of original hypergraph
+        reverse_derivative.inputs += [vmap[output_id]
+                                      for output_id in self.outputs]
+        reverse_derivative.outputs += [vmap[input_id]
+                                       for input_id in self.inputs]
+
+        return reverse_derivative
