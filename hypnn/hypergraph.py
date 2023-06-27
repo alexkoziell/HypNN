@@ -14,10 +14,9 @@
 """Vertex, Hyperedge and Hypergraph classes."""
 
 from __future__ import annotations
-from abc import ABC, abstractmethod
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, Self, TypeVar
 
 
 @dataclass
@@ -54,18 +53,34 @@ class Hyperedge:
     identity: bool = False
     """Whether this hyperedge is an identity or not."""
 
+    @classmethod
+    def create_identity(cls, sources: list[int],
+                        targets: list[int]) -> Self:
+        """Create an identity operation."""
+        return cls(sources, targets,
+                   label='id', identity=True)
+
 
 VertexType = TypeVar('VertexType', bound=Vertex)
 EdgeType = TypeVar('EdgeType', bound=Hyperedge)
 
 
-class BaseHypergraph(ABC, Generic[VertexType, EdgeType]):
-    """Base class for :py:class:`Hypergraph`.
+class BaseHypergraph(Generic[VertexType, EdgeType]):
+    """Base class for hypergraphs: subclass for concrete implementations.
 
-    This is to allow :py:attr:`vertices` and :py:attr:`edges`
-    to be `dict[int, VertexType]` and `dict[int, EdgeType]` types for arbitrary
-    subclasses `VertexType` and `EdgeType` of :py:class:`Vertex` and
-    :py:class:`Hyperedge`, respectively.
+    This particular flavour of hypergraph has two totally ordered sets of
+    priviledged vertices: the input and output vertices. Together, these
+    are referred to as boundary vertices.
+
+    This base class is designed to be subclassed, specifying a `VertexType`,
+    `EdgeType` and assigning these to :py:attr:`vertex_class` and
+    :py:attr:`edge_class` respectively. These types can :py:class:`Vertex`
+    and :py:class:`Hyperedge` or subclasses thereof in order to specify
+    additional behaviours.
+
+    By default, hypergraph instances begin with no vertices or hyperedges,
+    which can then be added using :py:meth:`add_vertex`, :py:meth:`add_edge`
+    to build out the hypergraph.
     """
 
     vertex_class: type[VertexType]
@@ -73,12 +88,17 @@ class BaseHypergraph(ABC, Generic[VertexType, EdgeType]):
 
     def __init__(self) -> None:
         """Initialize a :py:class:`BaseHypergraph` subclass."""
+        if not (hasattr(self, 'vertex_class')
+                and hasattr(self, 'edge_class')):
+            raise TypeError(
+                'Cannot instantiate hypergraph class without specifying vertex'
+                + 'and hyperedge classes to use.'
+            )
         self.vertices: dict[int, VertexType] = {}
         self.edges: dict[int, EdgeType] = {}
         self.inputs: list[int] = []
         self.outputs: list[int] = []
 
-    @abstractmethod
     def create_identity(self, sources: list[int],
                         targets: list[int]) -> EdgeType:
         """Return an identity hyperedge.
@@ -100,7 +120,13 @@ class BaseHypergraph(ABC, Generic[VertexType, EdgeType]):
         Returns:
             edge: An identity hyperedge.
         """
-        ...
+        if (len(sources) != len(targets) or
+            any(self.vertices[s].vtype != self.vertices[t].vtype
+                for s, t in zip(sources, targets))):
+            raise ValueError(
+                'Identity source and target types must match.'
+            )
+        return self.edge_class.create_identity(sources, targets)
 
     def add_vertex(self, vertex: VertexType) -> int:
         """Add a vertex to the hypergraph.
@@ -498,28 +524,7 @@ class BaseHypergraph(ABC, Generic[VertexType, EdgeType]):
 
 
 class Hypergraph(BaseHypergraph[Vertex, Hyperedge]):
-    """A directed hypergraph with boundaries.
+    """Concrete hypergraph class."""
 
-    This particular flavour of hypergraph has two totally ordered sets of
-    priviledged vertices: the input and output vertices. Together, these
-    are referred to as boundary vertices.
-
-    The :py:class:`Hypergraph` instance begins with no vertices or hyperedges,
-    which can then be added using :py:meth:`create_vertex`,
-    :py:meth:`add_vertex`, :py:meth:`create_edge` and :py:meth:`add_edge`
-    to build out the hypergraph.
-    """
-
-    VertexType = Vertex
-    EdgeType = Hyperedge
-
-    def create_identity(self, sources: list[int],
-                        targets: list[int]) -> Hyperedge:
-        """Create an identity hyperegde."""
-        if (len(sources) != len(targets) or
-            any(self.vertices[s].vtype != self.vertices[t].vtype
-                for s, t in zip(sources, targets))):
-            raise ValueError(
-                'Identity source and target types must match.'
-            )
-        return Hyperedge(sources, targets, label='id', identity=True)
+    vertex_class = Vertex
+    edge_class = Hyperedge

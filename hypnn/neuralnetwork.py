@@ -14,7 +14,7 @@
 """Neural networks as hypergraphs."""
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Self
 
 import numpy as np
 
@@ -99,6 +99,14 @@ class Operation(Hyperedge):
         self.reverse_derivative = reverse_derivative
         super().__init__(sources, targets, label, identity)
 
+    @classmethod
+    def create_identity(cls, sources: list[int],
+                        targets: list[int]) -> Self:
+        """Create an identity operation."""
+        return cls(lambda x: x, sources, targets,
+                   reverse_derivative=lambda xs: [xs[1]] or [None],
+                   label='id', identity=True)
+
 
 class NeuralNetwork(BaseHypergraph[Variable, Operation]):
     """A hypergraph representing a neural network.
@@ -108,21 +116,8 @@ class NeuralNetwork(BaseHypergraph[Variable, Operation]):
     vertices. This occurs from the inputs to the outputs of the hypergraph.
     """
 
-    vertex_type = Variable
-    edge_type = Operation
-
-    def create_identity(self, sources: list[int],
-                        targets: list[int]) -> Operation:
-        """Create an identity operation."""
-        if (len(sources) != len(targets) or
-            any(self.vertices[s].vtype != self.vertices[t].vtype
-                for s, t in zip(sources, targets))):
-            raise ValueError(
-                'Identity source and target types must match.'
-            )
-        return Operation(lambda x: x, sources, targets,
-                         reverse_derivative=lambda xs: [xs[1]] or [None],
-                         label='id', identity=True)
+    vertex_class = Variable
+    edge_class = Operation
 
     def topological_sort(self) -> list[int]:
         """Sorts hyperedges for performing computation.
