@@ -61,7 +61,9 @@ class Variable(Vertex):
         if self.value is not None and not isinstance(self.value, np.ndarray):
             self.value = np.array(self.value)
         if self.value is not None and self.value.shape != self.vtype:
-            raise ValueError('Incompatible value assigned to vertex.')
+            raise ValueError(
+                f'Incompatible value assigned to vertex {self.name}.'
+            )
 
     def set_value(self, value: np.ndarray | None) -> None:
         """Set this variable to a specific value."""
@@ -69,7 +71,10 @@ class Variable(Vertex):
             self.value = value
             return
         if value.shape != self.vtype:
-            raise ValueError('Incompatible value assigned to vertex.')
+            raise ValueError(
+                f'Incompatible value of shape {value.shape} assigned to '
+                + f'vertex of type {self.vtype}.'
+            )
         self.value = value
 
 
@@ -254,7 +259,7 @@ class NeuralNetwork(BaseHypergraph[Variable, Operation]):
         # correspond to outputs and inputs of original hypergraph
         reverse_derivative.inputs += [vmap[output_id]
                                       for output_id in self.outputs]
-        reverse_derivative.outputs += [vmap[input_id]
-                                       for input_id in self.inputs]
+        reverse_derivative.outputs = [vmap[input_id]
+                                      for input_id in self.inputs]
 
         return reverse_derivative
