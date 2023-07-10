@@ -409,7 +409,7 @@ class BaseHypergraph(Generic[VertexType, EdgeType]):
             for vertex_id in prev_vertex_layer:
                 if (
                     vertex_id in decomposed.outputs or
-                    any(edge_id not in ready_edges
+                    all(edge_id not in ready_edges
                         for edge_id in decomposed.vertices[vertex_id].targets)
                 ):
                     new_identity = decomposed.insert_identity_after(vertex_id)
@@ -483,10 +483,15 @@ class BaseHypergraph(Generic[VertexType, EdgeType]):
                                                 edge_id in decomposed.edges}
             for edge_id in fwd_pass_layer:
                 sources = decomposed.edges[edge_id].sources
-                edge_positions[edge_id] += (sum(source_positions[vertex_id] for
-                                                vertex_id in sources)
-                                            / len(sources)
-                                            if len(sources) != 0 else 0)
+                edge_positions[edge_id] += (
+                    sum(source_positions[vertex_id]
+                        # nodes with multiple targets may
+                        # not appear in source_positions
+                        if vertex_id in source_positions
+                        else 0
+                        for vertex_id in sources)
+                    / len(sources)
+                    if len(sources) != 0 else 0)
             for edge_id in bwd_pass_layer:
                 targets = decomposed.edges[edge_id].targets
                 edge_positions[edge_id] += (sum(target_positions[vertex_id] for
