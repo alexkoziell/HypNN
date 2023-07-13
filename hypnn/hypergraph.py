@@ -312,7 +312,7 @@ class BaseHypergraph(Generic[VertexType, EdgeType]):
                        the identity.
 
         Returns:
-            edge_id: The identifier of the newly created identity hyperedge.
+            identity_id: The identifier of the new identity hyperedge.
         """
         # Create a new vertex with the same attributes as the original vertex
         old_vertex = self.vertices[vertex_id]
@@ -348,6 +348,55 @@ class BaseHypergraph(Generic[VertexType, EdgeType]):
                         for output_id in self.outputs]
 
         return identity_id
+
+    def insert_identities_between(self, vertex_id: int,
+                                  edge_id: int) -> set[int]:
+        """Add an identity hyperedge between a vertex and one of its targets.
+
+        This method disconnects the original vertex from the hyperedge and
+        adds a new vertex connected to the hyperedge in the orignal vertex's
+        place. The original vertex is then connected to the new vertex by an
+        identity hyperedge.
+
+        Args:
+            vertex_id: The identifier of the vertex to be connected to the new
+                       the identity.
+            edge_id: The identifier of the hyperedge to be connected to the
+                       new the identity.
+
+        Returns:
+            identity_ids: The identifier of the new identity hyperedges.
+        """
+        old_vertex = self.vertices[vertex_id]
+        identity_ids = set()
+
+        for port_num, source_id in enumerate(self.edges[edge_id].sources):
+            if source_id == vertex_id:
+                # Create a new vertex with the same attributes as the original
+                # vertex. Sources and targets will be updated later
+                new_vertex = deepcopy(old_vertex)
+                new_vertex_id = self.add_vertex(new_vertex)
+
+                # Add the new identity hyperedge
+                identity_edge = self.create_identity([vertex_id],
+                                                     [new_vertex_id])
+                identity_id = self.add_edge(identity_edge)
+                identity_ids.add(identity_id)
+                # Sources of the new vertex is just the new identity edge, and
+                # targets is the original hyperedge
+                new_vertex.sources = {identity_id}
+                new_vertex.targets = {edge_id}
+
+                # Disconnect original vertex from hyperedge
+                if edge_id in old_vertex.targets:
+                    old_vertex.targets.remove(edge_id)
+                # Connect to new identity hyperedge
+                old_vertex.targets.add(identity_id)
+                # Update the sources lists the edge to replace
+                # the orignal vertex with the new vertex
+                self.edges[edge_id].sources[port_num] = new_vertex_id
+
+        return identity_ids
 
     def layer_decomp(self, in_place: bool = False
                      ) -> tuple[BaseHypergraph, list[list[int]]]:
@@ -407,14 +456,18 @@ class BaseHypergraph(Generic[VertexType, EdgeType]):
             # target edges are not ready, split the vertex and add
             # an identity to traverse the layer
             for vertex_id in prev_vertex_layer:
-                if (
-                    vertex_id in decomposed.outputs or
-                    all(edge_id not in ready_edges
-                        for edge_id in decomposed.vertices[vertex_id].targets)
-                ):
+                if vertex_id in decomposed.outputs:
                     new_identity = decomposed.insert_identity_after(vertex_id)
                     new_identities.add(new_identity)
                     ready_edges.add(new_identity)
+                vertex_targets = decomposed.vertices[vertex_id].targets.copy()
+                for edge_id in vertex_targets:
+                    if edge_id not in ready_edges:
+                        new_identities = decomposed.insert_identities_between(
+                            vertex_id, edge_id
+                        )
+                        new_identities |= new_identities
+                        ready_edges |= new_identities
 
             # Populate the current layer with edges that are ready to
             # be placed, and remove them from the set of unplaced edges

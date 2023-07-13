@@ -184,8 +184,8 @@ class MplHypergraph:
     """A class for drawing hypergraphs in matplotlib."""
 
     vertex_radius: float = 3e-2
-    box_width: float = 0.8
-    box_height: float = 1.6
+    box_width: float = 0.5
+    box_height: float = 1.0
     x_scale: float = 2e-1
     y_scale: float = 2e-1
 
