@@ -547,10 +547,13 @@ class BaseHypergraph(Generic[VertexType, EdgeType]):
                     if len(sources) != 0 else 0)
             for edge_id in bwd_pass_layer:
                 targets = decomposed.edges[edge_id].targets
-                edge_positions[edge_id] += (sum(target_positions[vertex_id] for
-                                                vertex_id in targets)
-                                            / len(targets)
-                                            if len(targets) != 0 else 0)
+                edge_positions[edge_id] += (sum(
+                    target_positions[vertex_id] for
+                    vertex_id in targets
+                    if vertex_id in target_positions
+                    )
+                    / len(targets)
+                    if len(targets) != 0 else 0)
 
             # Sort the edges in the current layers according to their scores
             fwd_pass_layer.sort(key=lambda edge_id: edge_positions[edge_id])
