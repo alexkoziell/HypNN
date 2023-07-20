@@ -349,9 +349,9 @@ class BaseHypergraph(Generic[VertexType, EdgeType]):
 
         return identity_id
 
-    def insert_identities_between(self, vertex_id: int,
-                                  edge_id: int) -> set[int]:
-        """Add an identity hyperedge between a vertex and one of its targets.
+    def insert_vertex_to_edge_identities(self, vertex_id: int,
+                                         edge_id: int) -> set[int]:
+        """Add identity hyperedges between a vertex and one of its targets.
 
         This method disconnects the original vertex from the hyperedge and
         adds a new vertex connected to the hyperedge in the orignal vertex's
@@ -398,9 +398,67 @@ class BaseHypergraph(Generic[VertexType, EdgeType]):
 
         return identity_ids
 
+    def insert_edge_to_vertex_identities(self, edge_id: int,
+                                         vertex_id: int) -> set[int]:
+        """Add identity hyperedges between an edge and one of its targets.
+
+        This method disconnects the original vertex from the hyperedge and
+        adds a new vertex connected to the hyperedge in the orignal vertex's
+        place. The original vertex is then connected to the new vertex by an
+        identity hyperedge.
+
+        Args:
+            edge_id: The identifier of the hyperedge to be connected to the
+                       new the identity.
+            vertex_id: The identifier of the vertex to be connected to the new
+                       the identity.
+
+        Returns:
+            identity_ids: The identifier of the new identity hyperedges.
+        """
+        old_vertex = self.vertices[vertex_id]
+        identity_ids = set()
+
+        for source_edge_id in old_vertex.sources.copy():
+            if source_edge_id == edge_id:
+                for port_num, target_vertex_id in enumerate(
+                    self.edges[edge_id].targets
+                ):
+                    if target_vertex_id == vertex_id:
+                        # Create a new vertex with the same attributes as the
+                        # original vertex.
+                        # Sources and targets will be updated later
+                        new_vertex = deepcopy(old_vertex)
+                        new_vertex_id = self.add_vertex(new_vertex)
+
+                        # Add the new identity hyperedge
+                        identity_edge = self.create_identity([new_vertex_id],
+                                                             [vertex_id])
+                        identity_id = self.add_edge(identity_edge)
+                        identity_ids.add(identity_id)
+                        # Sources of the new vertex is just the new identity
+                        # edge, and targets is the original hyperedge
+                        new_vertex.sources = {edge_id}
+                        new_vertex.targets = {identity_id}
+
+                        # Disconnect original vertex from hyperedge
+                        if edge_id in old_vertex.sources:
+                            old_vertex.sources.remove(edge_id)
+                        # Connect to new identity hyperedge
+                        old_vertex.sources.add(identity_id)
+                        # Update the target list of the edge to replace
+                        # the orignal vertex with the new vertex
+                        self.edges[edge_id].targets[port_num] = new_vertex_id
+
+        return identity_ids
+
     def layer_decomp(self, in_place: bool = False
                      ) -> tuple[BaseHypergraph, list[list[int]]]:
         """Decompose this hypergraph into layers of its hyperedges.
+
+        This decomposition requires the hypergraph to be acyclic and
+        'source monogamous': that every vertex has at most one source
+        edge.
 
         Args:
             in_place: Whether to modify `self` rather than creating
@@ -463,10 +521,11 @@ class BaseHypergraph(Generic[VertexType, EdgeType]):
                 vertex_targets = decomposed.vertices[vertex_id].targets.copy()
                 for edge_id in vertex_targets:
                     if edge_id not in ready_edges:
-                        new_identities = decomposed.insert_identities_between(
-                            vertex_id, edge_id
-                        )
-                        new_identities |= new_identities
+                        identity_ids = (
+                            decomposed.insert_vertex_to_edge_identities(
+                                vertex_id, edge_id
+                            ))
+                        new_identities |= identity_ids
                         ready_edges |= new_identities
 
             # Populate the current layer with edges that are ready to
@@ -564,6 +623,132 @@ class BaseHypergraph(Generic[VertexType, EdgeType]):
                     key=lambda edge_id: edge_positions[edge_id])
 
         return decomposed, edge_layers
+
+    def frobenius_layer_decomp(self, in_place: bool = False
+                               ) -> tuple[BaseHypergraph, list[list[int]]]:
+        """Decompose this hypergraph into layers of vertices and hyperedges.
+
+        This decomposition requires that the hypergraph is acyclic.
+
+        Args:
+            in_place: Whether to modify `self` rather than creating
+                      a new :py:class:`Hypergraph` instance.
+
+        Returns:
+            tuple: a tuple containing multiple values
+                - decomposed: The original hypergraph with possible additional
+                  identity edges inserted during the decomposition.
+                - layers: A list of alternating lists of vertex and edge ids
+                  corresponding to layers of the decomposition.
+        """
+        # If in_place, modify graph when identity edges are inserted
+        decomposed = self if in_place else deepcopy(self)
+
+        # This will become the final layer decomposition
+        layers: list[list[int]] = []
+
+        # A vertex is ready if all its source edges have been placed
+        ready_vertices: set[int] = set()
+
+        # Edges annd vertices not yet placed into any layer
+        unplaced_vertices: set[int] = set(decomposed.vertices.keys())
+        unplaced_edges: set[int] = set(decomposed.edges.keys())
+
+        # First layer: zero-source vertices
+        vertex_layer: list[int] = []
+        for vertex_id, vertex in decomposed.vertices.items():
+            if len(vertex.sources) == 0:
+                ready_vertices.add(vertex_id)
+                unplaced_vertices.remove(vertex_id)
+                vertex_layer.append(vertex_id)
+
+        layers.append(vertex_layer)
+
+        while len(unplaced_edges) > 0:
+            # Edges ready to be placed into the current edge layer
+            ready_edges: set[int] = set()
+            # Track newly created identity edges to ensure
+            # each layer contains at least one non-identity edge
+            new_identities: set[int] = set()
+
+            # If all the source vertices of an edge are ready,
+            # it is ready to be added to the layer decomposition
+            for edge_id in unplaced_edges:
+                if all(vertex_id in ready_vertices
+                       for vertex_id in decomposed.edges[edge_id].sources):
+                    ready_edges.add(edge_id)
+
+            # For all ready vertices
+            for vertex_id in ready_vertices:
+                # If a vertex is an output, traverse the layer
+                # with an identity edge
+                if vertex_id in decomposed.outputs:
+                    new_identity = decomposed.insert_identity_after(vertex_id)
+                    new_identities.add(new_identity)
+                    ready_edges.add(new_identity)
+                vertex_targets = decomposed.vertices[vertex_id].targets.copy()
+                for edge_id in vertex_targets:
+                    # If a target edge is unplaced and still not
+                    # yet ready to be placed, add an identity hyperedge
+                    # to traverse this layer
+                    if (edge_id in unplaced_edges
+                       and edge_id not in ready_edges):
+                        identity_ids = (
+                         decomposed.insert_vertex_to_edge_identities(
+                            vertex_id, edge_id
+                         ))
+                        new_identities |= identity_ids
+                        ready_edges |= new_identities
+
+            # Populate the current layer with edges that are ready to
+            # be placed, and remove them from the set of unplaced edges
+            current_edge_layer: list[int] = []
+            for edge_id in ready_edges:
+                current_edge_layer.append(edge_id)
+                unplaced_edges.discard(edge_id)
+
+            # Raise an error if the new layer is just a wall of identities,
+            # in which case no pending edges could be placed
+            if all(edge_id in new_identities
+                   for edge_id in current_edge_layer):
+                raise ValueError(
+                    'No existing edges could be placed into the next layer.'
+                    + 'This may be because the graph contains cycles.'
+                )
+
+            # Get next vertex layer and update ready_vertices
+            current_vertex_layer: list[int] = []
+            for vertex_id, vertex in decomposed.vertices.items():
+                if not any(source_id in unplaced_edges
+                           for source_id in vertex.sources):
+                    if vertex_id not in ready_vertices:
+                        current_vertex_layer.append(vertex_id)
+                        ready_vertices.add(vertex_id)
+
+            for edge_id in current_edge_layer:
+                edge_targets = decomposed.edges[edge_id].targets.copy()
+                for vertex_id in edge_targets:
+                    if vertex_id not in ready_vertices:
+                        identity_ids = (
+                         decomposed.insert_edge_to_vertex_identities(
+                            edge_id, vertex_id
+                         ))
+                        for identity_id in identity_ids:
+                            # identity edges only have one source vertex
+                            identity = decomposed.edges[identity_id]
+                            new_vertex_id = identity.sources[0]
+                            current_vertex_layer.append(new_vertex_id)
+                            ready_vertices.add(new_vertex_id)
+                        unplaced_edges |= identity_ids
+
+            # Add the newly constructed layers to the decomposition
+            layers.append(current_edge_layer)
+            layers.append(current_vertex_layer)
+
+            # TODO: move zero source, non-input vertices forward and move
+            # zero target, non-output vertices backward where possible
+
+        return decomposed, layers
 
     def __repr__(self) -> str:
         """Print a layered decomposition of this hypergraph."""
