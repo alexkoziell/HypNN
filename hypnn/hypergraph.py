@@ -650,7 +650,7 @@ class BaseHypergraph(Generic[VertexType, EdgeType]):
         # A vertex is ready if all its source edges have been placed
         ready_vertices: set[int] = set()
 
-        # Edges annd vertices not yet placed into any layer
+        # Edges and vertices not yet placed into any layer
         unplaced_vertices: set[int] = set(decomposed.vertices.keys())
         unplaced_edges: set[int] = set(decomposed.edges.keys())
 
@@ -747,6 +747,69 @@ class BaseHypergraph(Generic[VertexType, EdgeType]):
 
             # TODO: move zero source, non-input vertices forward and move
             # zero target, non-output vertices backward where possible
+
+        # After all edges have been placed, rearrange layers to try to minimize
+        # crossings of connections between vertices and edges
+        for layer_num in range(1, len(layers)):
+
+            # Rearrange layers in input-to-output and output-to-input
+            # directions in simultaneous forward and backward passes
+            fwd_pass_layer = layers[layer_num]
+            prev_fwd_layer = layers[layer_num]
+            bwd_pass_layer = layers[-layer_num - 1]
+            prev_bwd_layer = layers[-layer_num]
+
+            # Normalized vertical order of the source vertices
+            source_positions = {vertex_id: i/len(prev_fwd_layer)
+                                for i, vertex_id in enumerate(prev_fwd_layer)}
+            # Normalized vertical order of the target vertices
+            target_positions = {vertex_id: i/len(prev_bwd_layer)
+                                for i, vertex_id in enumerate(prev_bwd_layer)}
+
+            # Give items in the current layers a 'vertical position score'
+            # based on the center of mass of their source and/or
+            # target vertices
+            fwd_positions: dict[int, float] = {id: 0.0 for
+                                               id in fwd_pass_layer}
+            bwd_positions: dict[int, float] = {id: 0.0 for
+                                               id in bwd_pass_layer}
+            for id in fwd_pass_layer:
+                sources: set[int] | list[int]
+                if layer_num % 2 == 0:  # vertex layer
+                    sources = decomposed.vertices[id].sources
+                else:  # edge layer
+                    sources = decomposed.edges[id].sources
+                fwd_positions[id] += (
+                    sum(source_positions[id]
+                        # nodes with multiple targets may
+                        # not appear in source_positions
+                        if id in source_positions
+                        else 0
+                        for id in sources)
+                    / len(sources)
+                    if len(sources) != 0 else 0)
+            for id in bwd_pass_layer:
+                targets: set[int] | list[int]
+                if layer_num % 2 == 0:  # vertex layer
+                    targets = decomposed.vertices[id].targets
+                else:  # edge layer
+                    targets = decomposed.edges[id].targets
+                bwd_positions[id] += (
+                    sum(target_positions[id]
+                        # nodes with multiple sources may
+                        # not appear in target_positions
+                        if id in target_positions
+                        else 0
+                        for id in targets)
+                    / len(targets)
+                    if len(targets) != 0 else 0)
+
+            # Sort the edges in the current layers according to their scores
+            fwd_pass_layer.sort(key=lambda id: fwd_positions[id])
+            # If forward and backward pass layers are the same,
+            # no need to sort twice
+            if not layer_num == len(layers) - layer_num - 1:
+                bwd_pass_layer.sort(key=lambda id: bwd_positions[id])
 
         return decomposed, layers
 
