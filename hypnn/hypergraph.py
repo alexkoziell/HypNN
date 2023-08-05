@@ -815,20 +815,20 @@ class BaseHypergraph(Generic[VertexType, EdgeType]):
 
     def __repr__(self) -> str:
         """Print a layered decomposition of this hypergraph."""
-        decomposed, edge_layers = self.layer_decomp()
+        try:
+            decomposed, edge_layers = self.layer_decomp()
+        except ValueError:
+            decomposed, layers = self.frobenius_layer_decomp()
+            edge_layers = layers[1::2]
 
-        max_height = max(len(layer) for layer in edge_layers)
-        max_width = max(len(edge.label or '')
-                        for edge in decomposed.edges.values())
-        repr = ''
-        for height in range(max_height):
-            current_row = ''
-            for layer in edge_layers:
-                current_row += (
-                    f'{decomposed.edges[layer[height]].label:^{max_width}}; '
-                    if height < len(layer) else max_width * ' ' + '; ')
+        layer_reprs = (
+            ('(' if len(layer) > 1 else '')
+            + ' ⨂ '.join(decomposed.edges[edge_id].label for edge_id in layer)
+            + (')' if len(layer) > 1 else '')
+            for layer in edge_layers)
 
-            repr += current_row + '\n'
+        repr = ' ⨟ '.join(layer_reprs)
+
         return repr
 
 
