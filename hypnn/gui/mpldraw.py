@@ -38,7 +38,7 @@ class MplVertex(Circle):
     """
 
     def __init__(self, xy: Sequence[float], radius: float,
-                 label: Callable[[], str] | None = None,
+                 label: str | None = None,
                  **kwargs: Any) -> None:
         """Initialize an :py:class:`MplVertex` object."""
         self.label = label
@@ -52,7 +52,7 @@ class MplVertex(Circle):
             self.annotation.set_position(self.get_center())
         elif self.label is not None:
             ax = self.axes
-            label = self.label()
+            label = self.label
             x, y = self.get_center()
             self.annotation = ax.annotate(label,
                                           (x, y - 2.5 * self.radius),

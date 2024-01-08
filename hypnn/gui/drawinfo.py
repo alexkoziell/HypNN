@@ -33,7 +33,7 @@ class VertexDrawInfo:
     """x-coordinate for the vertex."""
     y: float
     """y-coordinate for the vertex."""
-    label: Callable[[], str]
+    label: str | None
     """Retrieves a label for annotating the vertex."""
 
 

@@ -171,10 +171,7 @@ class GraphScene(QGraphicsScene):
             x = vertex_draw_info.x * self.x_scale
             y = vertex_draw_info.y * self.y_scale
             radius = self.vertex_radius * (self.x_scale + self.y_scale) / 2
-            if vertex_draw_info.label is not None:
-                label = vertex_draw_info.label()
-            else:
-                label = None
+            label = vertex_draw_info.label
             vertex_item = VertexItem(x, y, radius, label)
             self.vertices[vertex_id] = vertex_item
             self.addItem(vertex_item)

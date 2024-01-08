@@ -38,6 +38,7 @@ class Variable(Vertex):
     name: str | None = None
     """A name for this variable."""
 
+    @property
     def label(self) -> str:
         """Return a label to be drawn with this variable.
 
