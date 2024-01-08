@@ -11,8 +11,11 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
+"""Main application window."""
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
-    QMainWindow, QPlainTextEdit, QVBoxLayout, QWidget
+    QMainWindow, QHBoxLayout, QToolBar, QWidget
 )
 
 from hypnn.gui.graphview import GraphView
@@ -24,32 +27,29 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        stress_test = Hypergraph()
-        for _ in range(18):
-            stress_test.add_vertex(Vertex())
-        stress_test.add_edge(
-            Hyperedge([0, 1, 2], [3, 12, 16, 4], 'f')
-        )
-        stress_test.add_edge(
-            Hyperedge([6, 13, 5, 9, 14], [11, 10], 'g')
-        )
-        stress_test.add_edge(
-            Hyperedge([4, 3, 15, 8], [5, 6, 7], 'h')
-        )
-        stress_test.add_edge(Hyperedge([12], [], 'e1'))
-        stress_test.add_edge(Hyperedge([16, 17], [], 'e2'))
-        stress_test.add_edge(Hyperedge([], [13, 17, 14], 's1'))
-        stress_test.add_edge(Hyperedge([], [15], 's2'))
-        stress_test.inputs = [2, 9, 8, 0, 1]
-        stress_test.outputs = [10, 7, 11]
-
         self.setWindowTitle('HypNN')
 
-        layout = QVBoxLayout()
+        layout = QHBoxLayout()
         graph_view = GraphView()
-        graph_view.set_graph(stress_test)
         layout.addWidget(graph_view)
-        layout.addWidget(QPlainTextEdit())
+
+        toolbar = QToolBar('toolbar')
+        toolbar.setOrientation(Qt.Orientation.Vertical)
+
+        add_vertex_action = QAction('Add Vertex', self)
+        add_vertex_action.setStatusTip('Add a vertex to the hypergraph.')
+        add_vertex_action.triggered.connect(lambda _: print('Add vertex clicked!'))
+        toolbar.addAction(add_vertex_action)
+        add_edge_action = QAction('Add Hyperedge', self)
+        add_edge_action.setStatusTip('Add a hyperedge to the hypergraph.')
+        add_edge_action.triggered.connect(lambda _: print('Add hyperedge clicked!'))
+        toolbar.addAction(add_edge_action)
+        add_wire_action = QAction('Add Wire', self)
+        add_wire_action.setStatusTip('Add a wire to the hypergraph.')
+        add_wire_action.triggered.connect(lambda _: print('Add wire clicked!'))
+
+        toolbar.addAction(add_wire_action)
+        layout.addWidget(toolbar)
 
         widget = QWidget()
         widget.setLayout(layout)
