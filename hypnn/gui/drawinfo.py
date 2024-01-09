@@ -69,6 +69,14 @@ class HypergraphDrawInfo:
         if layout == 'convex_opt':
             self.frobenius_convex_optimization_layout()
 
+    def add_vertex(self, vertex) -> int:
+        """Add a vertex to the hypergraph and create drawing info."""
+        vertex_id = self.graph.add_vertex(vertex)
+        self.vertices[vertex_id] = VertexDrawInfo(
+            0, 0, vertex.label if hasattr(vertex, 'label') else None
+        )
+        return vertex_id
+
     def convex_optimization_layout(self) -> None:
         """Determine x and y coordinates for vertices and hyperedges."""
         # Decompose the graph into layers of edges

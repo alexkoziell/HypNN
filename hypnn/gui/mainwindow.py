@@ -18,8 +18,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QHBoxLayout, QToolBar, QWidget
 )
 
-from hypnn.gui.graphview import GraphView
-from hypnn.hypergraph import Hypergraph, Hyperedge, Vertex
+from hypnn.gui.editor import Editor
 
 
 class MainWindow(QMainWindow):
@@ -29,31 +28,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle('HypNN')
 
-        layout = QHBoxLayout()
-        graph_view = GraphView()
-        layout.addWidget(graph_view)
-
-        toolbar = QToolBar('toolbar')
-        toolbar.setOrientation(Qt.Orientation.Vertical)
-
-        add_vertex_action = QAction('Add Vertex', self)
-        add_vertex_action.setStatusTip('Add a vertex to the hypergraph.')
-        add_vertex_action.triggered.connect(lambda _: print('Add vertex clicked!'))
-        toolbar.addAction(add_vertex_action)
-        add_edge_action = QAction('Add Hyperedge', self)
-        add_edge_action.setStatusTip('Add a hyperedge to the hypergraph.')
-        add_edge_action.triggered.connect(lambda _: print('Add hyperedge clicked!'))
-        toolbar.addAction(add_edge_action)
-        add_wire_action = QAction('Add Wire', self)
-        add_wire_action.setStatusTip('Add a wire to the hypergraph.')
-        add_wire_action.triggered.connect(lambda _: print('Add wire clicked!'))
-
-        toolbar.addAction(add_wire_action)
-        layout.addWidget(toolbar)
-
-        widget = QWidget()
-        widget.setLayout(layout)
-
-        self.setCentralWidget(widget)
+        editor = Editor()
+        self.setCentralWidget(editor)
 
         self.show()

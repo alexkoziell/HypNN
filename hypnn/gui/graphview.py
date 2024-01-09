@@ -42,6 +42,9 @@ class GraphView(QGraphicsView):
         self.repaint()
         self.centerOn(0, 0)
 
+    def add_vertex(self, vertex) -> None:
+        self.graph_scene.add_vertex(vertex)
+
 
 class VertexItem(QGraphicsEllipseItem):
     """Vertex graphics item."""
@@ -163,10 +166,29 @@ class GraphScene(QGraphicsScene):
         """Set the graph displayed in the graphics scene."""
         self.draw_info = HypergraphDrawInfo(graph)
         self.clear()
-        self.add_items()
+        self.place_items()
 
-    def add_vertices(self) -> None:
-        """Add vertices to the graph scene."""
+    def add_vertex(self, vertex) -> int:
+        """Add a vertex to the draw info and add to the scene."""
+        vertex_id = self.draw_info.add_vertex(vertex)
+        self.place_vertex(vertex_id)
+        return vertex_id
+
+    def place_vertex(self, vertex_id) -> None:
+        """Place a vertex from the draw info in the scene."""
+        vertex_draw_info = self.draw_info.vertices[vertex_id]
+        x = vertex_draw_info.x * self.x_scale
+        y = vertex_draw_info.y * self.y_scale
+        radius = self.vertex_radius * (self.x_scale + self.y_scale) / 2
+        label = vertex_draw_info.label
+        vertex_item = VertexItem(x, y, radius, label)
+        self.vertices[vertex_id] = vertex_item
+        self.addItem(vertex_item)
+        if hasattr(vertex_item, 'textItem'):
+            self.addItem(vertex_item.textItem)
+
+    def place_vertices(self) -> None:
+        """Place all vertices from the draw info in the graph scene."""
         for vertex_id, vertex_draw_info in self.draw_info.vertices.items():
             x = vertex_draw_info.x * self.x_scale
             y = vertex_draw_info.y * self.y_scale
@@ -178,8 +200,8 @@ class GraphScene(QGraphicsScene):
             if hasattr(vertex_item, 'textItem'):
                 self.addItem(vertex_item.textItem)
 
-    def add_edges(self) -> None:
-        """Add hyperedges to the graph scene."""
+    def place_edges(self) -> None:
+        """Place all hyperedges from the draw info in the graph scene."""
         for edge_id, edge_draw_info in self.draw_info.edges.items():
             width = self.x_scale * self.box_width
             height = self.y_scale * self.box_height
@@ -204,8 +226,8 @@ class GraphScene(QGraphicsScene):
             self.edges[edge_id] = edge_item
             self.addItem(edge_item)
 
-    def add_wires_for_edge(self, edge_id: int) -> None:
-        """Add wires for an edge to the graph scene."""
+    def place_wires_for_edge(self, edge_id: int) -> None:
+        """Place all wires for an edge in the graph scene."""
         edge_item = self.edges[edge_id]
 
         x_shift = 0 if edge_item.identity else self.box_width * self.x_scale
@@ -229,18 +251,18 @@ class GraphScene(QGraphicsScene):
                                                  else vertex_item)
                 self.addItem(WireItem(source, target, x_shift, y_shift))
 
-    def add_wires(self) -> None:
-        """Add all wires to the graph scene."""
+    def place_wires(self) -> None:
+        """Place all wires from the draw info in the graph scene."""
         # Given that every wire has an edge at one of its end points, we are
         # guaranteed to find all the wires by iterating over all the edges
         for edge_id in self.draw_info.edges:
-            self.add_wires_for_edge(edge_id)
+            self.place_wires_for_edge(edge_id)
 
-    def add_items(self) -> None:
-        """Add graphics items for the current graph."""
-        self.add_vertices()
-        self.add_edges()
-        self.add_wires()
+    def place_items(self) -> None:
+        """Place graphics items from the draw info into the scene."""
+        self.place_vertices()
+        self.place_edges()
+        self.place_wires()
         self.setSceneRect(self.sceneRect().x() - self.x_scale,
                           self.sceneRect().y() - self.y_scale,
                           self.sceneRect().width() + self.x_scale * 1.5,
