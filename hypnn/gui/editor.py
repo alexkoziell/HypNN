@@ -66,6 +66,4 @@ class Editor(QWidget):
 
     def add_hyperedge_clicked(self) -> None:
         """Handle add vertex button action."""
-        graph = self.graph_view.graph()
-        graph.add_edge(Hyperedge([], [], 'f'))
-        self.graph_view.set_graph(graph)
+        self.graph_view.add_edge(Hyperedge([], [], 'f'))

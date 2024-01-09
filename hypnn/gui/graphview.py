@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QGraphicsTextItem
 )
 
-from hypnn.hypergraph import BaseHypergraph
+from hypnn.hypergraph import BaseHypergraph, Hyperedge, Vertex
 from hypnn.gui.drawinfo import HypergraphDrawInfo
 
 
@@ -42,8 +42,13 @@ class GraphView(QGraphicsView):
         self.repaint()
         self.centerOn(0, 0)
 
-    def add_vertex(self, vertex) -> None:
+    def add_vertex(self, vertex: Vertex) -> None:
+        """Add a vertex to the graph view."""
         self.graph_scene.add_vertex(vertex)
+
+    def add_edge(self, edge: Hyperedge) -> None:
+        """Add an edge to the graph view"""
+        self.graph_scene.add_edge(edge)
 
 
 class VertexItem(QGraphicsEllipseItem):
@@ -174,14 +179,20 @@ class GraphScene(QGraphicsScene):
         self.clear()
         self.place_items()
 
-    def add_vertex(self, vertex) -> int:
+    def add_vertex(self, vertex: Vertex) -> int:
         """Add a vertex to the draw info and add to the scene."""
         vertex_id = self.draw_info.add_vertex(vertex)
         self.place_vertex(vertex_id)
         return vertex_id
 
+    def add_edge(self, edge: Hyperedge) -> int:
+        """Add an edge to the draw info and add to the scene."""
+        edge_id = self.draw_info.add_edge(edge)
+        self.place_edge(edge_id)
+        return edge_id
+
     def place_vertex(self, vertex_id) -> None:
-        """Place a vertex from the draw info in the scene."""
+        """Place a vertex from the draw info into the scene."""
         vertex_draw_info = self.draw_info.vertices[vertex_id]
         x = vertex_draw_info.x * self.x_scale
         y = vertex_draw_info.y * self.y_scale
@@ -194,7 +205,7 @@ class GraphScene(QGraphicsScene):
             self.addItem(vertex_item.textItem)
 
     def place_vertices(self) -> None:
-        """Place all vertices from the draw info in the graph scene."""
+        """Place all vertices from the draw info into the scene."""
         for vertex_id, vertex_draw_info in self.draw_info.vertices.items():
             x = vertex_draw_info.x * self.x_scale
             y = vertex_draw_info.y * self.y_scale
@@ -206,8 +217,35 @@ class GraphScene(QGraphicsScene):
             if hasattr(vertex_item, 'textItem'):
                 self.addItem(vertex_item.textItem)
 
+    def place_edge(self, edge_id) -> None:
+        """Place an edge from the draw info into the scene."""
+        edge_draw_info = self.draw_info.edges[edge_id]
+        width = self.x_scale * self.box_width
+        height = self.y_scale * self.box_height
+        if edge_draw_info.identity:
+            width /= 10
+            height /= 10
+
+        x_shift = width / 2
+        y_shift = height / 2
+
+        x = edge_draw_info.x * self.x_scale - x_shift
+        y = edge_draw_info.y * self.y_scale - y_shift
+
+        edge = self.draw_info.graph.edges[edge_id]
+        sources = [self.vertices[vertex_id] for vertex_id in edge.sources]
+        targets = [self.vertices[vertex_id] for vertex_id in edge.targets]
+
+        edge_item = EdgeItem(x, y, width, height,
+                             edge_draw_info.label,
+                             sources, targets,
+                             edge_id,
+                             edge_draw_info.identity)
+        self.edges[edge_id] = edge_item
+        self.addItem(edge_item)
+
     def place_edges(self) -> None:
-        """Place all hyperedges from the draw info in the graph scene."""
+        """Place all hyperedges from the draw info into the scene."""
         for edge_id, edge_draw_info in self.draw_info.edges.items():
             width = self.x_scale * self.box_width
             height = self.y_scale * self.box_height
@@ -228,8 +266,8 @@ class GraphScene(QGraphicsScene):
             edge_item = EdgeItem(x, y, width, height,
                                  edge_draw_info.label,
                                  sources, targets,
-                                 edge_draw_info.identity,
-                                 edge_id)
+                                 edge_id,
+                                 edge_draw_info.identity)
             self.edges[edge_id] = edge_item
             self.addItem(edge_item)
 

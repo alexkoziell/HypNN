@@ -22,7 +22,7 @@ from cvxpy.expressions.variable import Variable
 from cvxpy.problems.objective import Minimize
 from cvxpy.problems.problem import Problem
 
-from hypnn.hypergraph import BaseHypergraph
+from hypnn.hypergraph import BaseHypergraph, Hyperedge, Vertex
 
 
 @dataclass
@@ -69,13 +69,22 @@ class HypergraphDrawInfo:
         if layout == 'convex_opt':
             self.frobenius_convex_optimization_layout()
 
-    def add_vertex(self, vertex) -> int:
-        """Add a vertex to the hypergraph and create drawing info."""
+    def add_vertex(self, vertex: Vertex) -> int:
+        """Add a vertex to the hypergraph and create draw info."""
         vertex_id = self.graph.add_vertex(vertex)
         self.vertices[vertex_id] = VertexDrawInfo(
             0, 0, vertex.label if hasattr(vertex, 'label') else None
         )
         return vertex_id
+
+    def add_edge(self, edge: Hyperedge) -> int:
+        """Add an edge to the hypergraph and create draw info."""
+        edge_id = self.graph.add_edge(edge)
+        self.edges[edge_id] = EdgeDrawInfo(
+            0, 0, edge.label, edge.identity,
+            1.0 if len(edge.sources) == 1 == len(edge.targets) else 2.0
+        )
+        return edge_id
 
     def convex_optimization_layout(self) -> None:
         """Determine x and y coordinates for vertices and hyperedges."""
